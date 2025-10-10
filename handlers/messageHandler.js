@@ -1,3 +1,4 @@
+const sqlServer = require('mssql');
 const { queryDB1, queryDB2 } = require('../db');
 const redisClient = require('../redisClient');
 const { logEvent } = require('../auditLog');
@@ -64,18 +65,49 @@ async function startRegistration(userId, replyToken) {
 // ประมวลผลเลขบัตร
 async function processIdCardInput(userId, idCard, replyToken) {
   if (!isValidIdCard(idCard)) {
-    await replyMessage(replyToken, [{ type: 'text', text: '❌ กรุณากรอกเลขบัตรประชาชน 13 หลักให้ถูกต้อง' }]);
+    await replyMessage(replyToken, [
+      { type: 'text', text: '❌ กรุณากรอกเลขบัตรประชาชน 13 หลักให้ถูกต้อง' }
+    ]);
     return;
   }
 
-  const userInfoRows = await queryDB1('SELECT * FROM users WHERE id_card = ?', [idCard]);
+  // 🔹 Query ตรวจสอบเลขบัตรจาก HNOPD_MASTER + HNName (SQL Server)
+  const sqlQuery = `
+      DECLARE @date DATE = CAST(GETDATE() AS DATE);
+      SELECT 
+          N.HN,
+          N.ID AS CID,
+          N.InitialName,
+          N.FirstName,
+          N.LastName,
+          N.BirthDateTime AS DOB,
+          OM.DefaultRightCode AS DefaultRight,
+          OM.VN
+      FROM HNOPD_MASTER OM
+      LEFT JOIN HNName N ON OM.HN = N.HN
+      WHERE OM.VisitDate >= @date
+        AND OM.VisitDate < DATEADD(DAY, 1, @date)
+        AND N.ID = @id_card
+      ORDER BY OM.VN ASC
+  `;
+
+  // เรียก queryDB1 แบบ named parameter
+  const userInfoRows = await queryDB1(sqlQuery, {
+    id_card: { type: sqlServer.VarChar, value: idCard }
+  });
   const userInfo = userInfoRows[0];
+  const nameWithoutTitle = (userInfo.FirstName || '').replace(/^(นาย|นาง|นางสาว)/, '').trim();
+  const lastName = (userInfo.LastName || '').trim();
+
   if (!userInfo) {
-    await replyMessage(replyToken, [{ type: 'text', text: '❌ ไม่พบข้อมูลเลขบัตรนี้ในระบบ' }]);
-    await logEvent('register.failed', { userId, id_card: idCard, reason: 'Not found in DB1' });
+    await replyMessage(replyToken, [
+      { type: 'text', text: '❌ ไม่พบข้อมูลเลขบัตรนี้ในระบบวันนี้' }
+    ]);
+    await logEvent('register.failed', { userId, id_card: idCard, reason: 'Not found in HNOPD_MASTER' });
     return;
   }
 
+  // 🔹 บันทึกลง DB2 (MySQL)
   try {
     await queryDB2(
       'INSERT INTO line_registered_users (line_user_id, id_card, registered_at) VALUES (?, ?, NOW())',
@@ -87,28 +119,22 @@ async function processIdCardInput(userId, idCard, replyToken) {
     const tokenPayload = {
       lineUserId: userId,
       id_card: idCard,
-      first_name: userInfo.first_name,
-      last_name: userInfo.last_name
+      full_name: userInfo.FullName
     };
     const jwtToken = createToken(tokenPayload, '24h');
 
     await replyMessage(replyToken, [
-      {
-        type: 'text',
-        text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${userInfo.first_name} ${userInfo.last_name}`
-      },
-      {
-        type: 'text',
-        text: `🛡️ Token สำหรับยืนยันตัวตนที่คีออสก์:\n${jwtToken}`
+      { 
+        type: 'text', 
+        text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}`
       }
+
+      // { type: 'text', text: `🛡️ Token สำหรับยืนยันตัวตนที่คีออสก์:\n${jwtToken}` }
     ]);
 
     setTimeout(async () => {
       await pushMessage(userId, [
-        {
-          type: 'text',
-          text: '🎉 ขอบคุณที่ลงทะเบียนกับเรา\nคุณจะได้รับข้อความแจ้งเตือนสำคัญผ่าน LINE OA นี้'
-        }
+        { type: 'text', text: '🎉 ขอบคุณที่ลงทะเบียนกับเรา\nคุณจะได้รับข้อความแจ้งเตือนสำคัญผ่าน LINE OA นี้' }
       ]);
     }, 2000);
 
@@ -116,9 +142,12 @@ async function processIdCardInput(userId, idCard, replyToken) {
 
   } catch (error) {
     console.error(error);
-    await replyMessage(replyToken, [{ type: 'text', text: '❌ เกิดข้อผิดพลาดในการลงทะเบียน\nกรุณาลองใหม่อีกครั้ง' }]);
+    await replyMessage(replyToken, [
+      { type: 'text', text: '❌ เกิดข้อผิดพลาดในการลงทะเบียน\nกรุณาลองใหม่อีกครั้ง' }
+    ]);
     await logEvent('register.failed', { userId, id_card: idCard, reason: 'DB2 insert error' });
   }
 }
+
 
 module.exports = { startRegistration, processIdCardInput, replyMessage, pushMessage };

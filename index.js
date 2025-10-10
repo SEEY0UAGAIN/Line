@@ -45,7 +45,8 @@ app.post('/webhook', async (req, res) => {
           const quickReplyItems = [
             { type: 'action', action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
             { type: 'action', action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' } },
-            { type: 'action', action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } }
+            { type: 'action', action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } },
+            { type: 'action', action: { type: 'message', label: 'รับ Token', text: 'รับ token' } }
           ];
 
           if (msg === 'ลงทะเบียน' || msg === 'register') {
@@ -63,6 +64,27 @@ app.post('/webhook', async (req, res) => {
             await replyMessage(event.replyToken, [{ type: 'text', text: '📄 กำลังตรวจสอบสถานะ...' }], quickReplyItems);
           } else if (msg === 'ติดต่อเจ้าหน้าที่') {
             await replyMessage(event.replyToken, [{ type: 'text', text: '☎️ ติดต่อเราได้ที่ 1218 กด 8' }], quickReplyItems);
+          }else if (msg === 'รับ token') {
+            const rows = await require('./db').queryDB2(
+              'SELECT * FROM line_registered_users WHERE line_user_id = ?',
+              [userId]
+            );
+
+            if (rows.length === 0) {
+              await replyMessage(event.replyToken, [{ type: 'text', text: '❌ คุณยังไม่ได้ลงทะเบียน' }]);
+              return;
+            }
+
+            const userInfo = rows[0];
+            const jwtToken = require('./handlers/messageHandler').createToken({
+              lineUserId: userId,
+              id_card: userInfo.id_card,
+              full_name: userInfo.full_name
+            }, '24h');
+
+            await replyMessage(event.replyToken, [
+              { type: 'text', text: `🛡️ Token สำหรับยืนยันตัวตนที่คีออสก์:\n${jwtToken}` }
+            ]);
           } else {
             await replyMessage(event.replyToken, [{ type: 'text', text: 'กรุณาเลือกเมนูด้านล่าง' }], quickReplyItems);
           }

@@ -1,0 +1,15 @@
+DECLARE @date DATE = CAST(GETDATE() AS DATE); -- หรือกำหนดวันอื่น
+DECLARE @hn NVARCHAR(20) = NULL; -- กำหนด HN ถ้าต้องการ filter
+
+SELECT DISTINCT 
+    N.HN,
+    N.ID AS CID,
+    CONCAT(N.InitialName, N.FirstName, N.LastName) AS FullName,
+    N.BirthDateTime AS DOB,
+    OM.DefaultRightCode AS DefaultRight
+FROM HNOPD_MASTER OM
+LEFT JOIN HNName N ON OM.HN = N.HN
+WHERE OM.VisitDate >= @date
+  AND OM.VisitDate < DATEADD(DAY, 1, @date)
+  AND (@hn IS NULL OR OM.HN = @hn)
+ORDER BY OM.VN ASC;
