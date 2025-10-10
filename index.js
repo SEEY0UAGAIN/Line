@@ -25,7 +25,7 @@ app.post('/webhook', async (req, res) => {
         const quickReplyItems = [
           { type: 'action', action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
           { type: 'action', action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' } },
-          { type: 'action', action: { type: 'message', label: 'ติดต่อเรา', text: 'ติดต่อเรา' } }
+          { type: 'action', action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } }
         ];
         await replyMessage(event.replyToken, [
           { type: 'text', text: '🎉 ยินดีต้อนรับ! กรุณาเลือกเมนูด้านล่าง', quickReply: { items: quickReplyItems } }
@@ -45,7 +45,7 @@ app.post('/webhook', async (req, res) => {
           const quickReplyItems = [
             { type: 'action', action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
             { type: 'action', action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' } },
-            { type: 'action', action: { type: 'message', label: 'ติดต่อเรา', text: 'ติดต่อเรา' } }
+            { type: 'action', action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } }
           ];
 
           if (msg === 'ลงทะเบียน' || msg === 'register') {
@@ -61,8 +61,8 @@ app.post('/webhook', async (req, res) => {
             }
           } else if (msg === 'ตรวจสอบสถานะ') {
             await replyMessage(event.replyToken, [{ type: 'text', text: '📄 กำลังตรวจสอบสถานะ...' }], quickReplyItems);
-          } else if (msg === 'ติดต่อเรา') {
-            await replyMessage(event.replyToken, [{ type: 'text', text: '☎️ ติดต่อเราได้ที่ support@example.com' }], quickReplyItems);
+          } else if (msg === 'ติดต่อเจ้าหน้าที่') {
+            await replyMessage(event.replyToken, [{ type: 'text', text: '☎️ ติดต่อเราได้ที่ 1218 กด 8' }], quickReplyItems);
           } else {
             await replyMessage(event.replyToken, [{ type: 'text', text: 'กรุณาเลือกเมนูด้านล่าง' }], quickReplyItems);
           }

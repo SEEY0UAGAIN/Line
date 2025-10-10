@@ -26,7 +26,7 @@ const richMenu = {
     },
     {
       bounds: { x: 800, y: 0, width: 400, height: 810 },
-      action: { type: 'message', label: 'Contact', text: 'ติดต่อเรา' }
+      action: { type: 'message', label: 'Contact', text: 'ติดต่อเจ้าหน้าที่' }
     }
   ]
 };

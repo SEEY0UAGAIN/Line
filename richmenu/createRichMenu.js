@@ -11,7 +11,7 @@ const richMenuData = {
   areas: [
     { bounds: { x: 0, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
     { bounds: { x: 400, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' } },
-    { bounds: { x: 800, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ติดต่อเรา', text: 'ติดต่อเรา' } }
+    { bounds: { x: 800, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } }
   ]
 };
 
