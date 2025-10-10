@@ -14,6 +14,25 @@ app.post('/webhook', async (req, res) => {
   try {
     const events = req.body.events;
     for (const event of events) {
+
+      // 🔹 Event follow: เมื่อผู้ใช้เพิ่ม OA
+      if (event.type === 'follow') {
+        const { linkRichMenuToUser } = require('./richmenu/createRichMenu');
+        const RICH_MENU_ID = 'YOUR_RICH_MENU_ID'; // ใส่ ID ของ Rich Menu ที่สร้างไว้
+        await linkRichMenuToUser(event.source.userId, RICH_MENU_ID);
+
+        // ส่งข้อความต้อนรับพร้อม Quick Reply (ถ้าต้องการ)
+        const quickReplyItems = [
+          { type: 'action', action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
+          { type: 'action', action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' } },
+          { type: 'action', action: { type: 'message', label: 'ติดต่อเรา', text: 'ติดต่อเรา' } }
+        ];
+        await replyMessage(event.replyToken, [
+          { type: 'text', text: '🎉 ยินดีต้อนรับ! กรุณาเลือกเมนูด้านล่าง', quickReply: { items: quickReplyItems } }
+        ]);
+      }
+
+      // 🔹 Event message: ข้อความจากผู้ใช้
       if (event.type === 'message' && event.message.type === 'text') {
         const userId = event.source.userId;
         const sessionStr = await redisClient.get(`session:${userId}`);
@@ -23,44 +42,35 @@ app.post('/webhook', async (req, res) => {
         if (session && session.step === 'awaiting_id_card') {
           await processIdCardInput(userId, event.message.text.trim(), event.replyToken);
         } else {
-          // Quick Reply Menu
           const quickReplyItems = [
-            {
-              type: 'action',
-              action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' }
-            },
-            {
-              type: 'action',
-              action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' }
-            },
-            {
-              type: 'action',
-              action: { type: 'message', label: 'ติดต่อเรา', text: 'ติดต่อเรา' }
-            }
+            { type: 'action', action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
+            { type: 'action', action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' } },
+            { type: 'action', action: { type: 'message', label: 'ติดต่อเรา', text: 'ติดต่อเรา' } }
           ];
 
           if (msg === 'ลงทะเบียน' || msg === 'register') {
             const rows = await require('./db').queryDB2(
-                'SELECT * FROM line_registered_users WHERE line_user_id = ?',
-                [userId]
+              'SELECT * FROM line_registered_users WHERE line_user_id = ?',
+              [userId]
             );
 
             if (rows.length > 0) {
-                await replyMessage(event.replyToken, [{ type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }]);
+              await replyMessage(event.replyToken, [{ type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }]);
             } else {
-                await startRegistration(userId, event.replyToken);
+              await startRegistration(userId, event.replyToken);
             }
-            } else if (msg === 'ตรวจสอบสถานะ') {
+          } else if (msg === 'ตรวจสอบสถานะ') {
             await replyMessage(event.replyToken, [{ type: 'text', text: '📄 กำลังตรวจสอบสถานะ...' }], quickReplyItems);
-            } else if (msg === 'ติดต่อเรา') {
+          } else if (msg === 'ติดต่อเรา') {
             await replyMessage(event.replyToken, [{ type: 'text', text: '☎️ ติดต่อเราได้ที่ support@example.com' }], quickReplyItems);
-            } else {
+          } else {
             await replyMessage(event.replyToken, [{ type: 'text', text: 'กรุณาเลือกเมนูด้านล่าง' }], quickReplyItems);
-            }
+          }
         }
       } else if (event.type === 'postback') {
         await handlePostback(event);
       }
+
     }
     res.status(200).send('OK');
   } catch (error) {
@@ -68,6 +78,7 @@ app.post('/webhook', async (req, res) => {
     res.status(500).send('Error');
   }
 });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`LINE OA Webhook running on http://localhost:${PORT}`));
