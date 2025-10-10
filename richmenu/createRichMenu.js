@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const channelAccessToken = 'YOUR_CHANNEL_ACCESS_TOKEN';
-const richMenuImagePath = 'path_to_your_image.jpg';
+const richMenuImagePath = 'main_menu.jpg';
 
 const richMenu = {
   size: { width: 800, height: 270 },
@@ -91,5 +91,19 @@ const setupRichMenu = async () => {
     await setDefaultRichMenu(richMenuId);
   }
 };
+
+async function linkRichMenuToUser(userId, richMenuId) {
+  try {
+    await axios.post(
+      `https://api.line.me/v2/bot/user/${userId}/richmenu/${richMenuId}`,
+      {},
+      { headers: { 'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } }
+    );
+    console.log(`Linked Rich Menu to user ${userId}`);
+  } catch (error) {
+    console.error('Error linking rich menu:', error.response?.data || error.message);
+  }
+}
+module.exports = { linkRichMenuToUser };
 
 setupRichMenu();
