@@ -18,16 +18,45 @@ app.post('/webhook', async (req, res) => {
         const userId = event.source.userId;
         const sessionStr = await redisClient.get(`session:${userId}`);
         const session = sessionStr ? JSON.parse(sessionStr) : null;
+        const msg = event.message.text.trim().toLowerCase();
 
         if (session && session.step === 'awaiting_id_card') {
           await processIdCardInput(userId, event.message.text.trim(), event.replyToken);
         } else {
-          const msg = event.message.text.trim().toLowerCase();
+          // Quick Reply Menu
+          const quickReplyItems = [
+            {
+              type: 'action',
+              action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' }
+            },
+            {
+              type: 'action',
+              action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' }
+            },
+            {
+              type: 'action',
+              action: { type: 'message', label: 'ติดต่อเรา', text: 'ติดต่อเรา' }
+            }
+          ];
+
           if (msg === 'ลงทะเบียน' || msg === 'register') {
-            await startRegistration(userId, event.replyToken);
-          } else {
-            await replyMessage(event.replyToken, [{ type: 'text', text: 'กรุณาพิมพ์ "ลงทะเบียน" เพื่อเริ่มต้น' }]);
-          }
+            const rows = await require('./db').queryDB2(
+                'SELECT * FROM line_registered_users WHERE line_user_id = ?',
+                [userId]
+            );
+
+            if (rows.length > 0) {
+                await replyMessage(event.replyToken, [{ type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }]);
+            } else {
+                await startRegistration(userId, event.replyToken);
+            }
+            } else if (msg === 'ตรวจสอบสถานะ') {
+            await replyMessage(event.replyToken, [{ type: 'text', text: '📄 กำลังตรวจสอบสถานะ...' }], quickReplyItems);
+            } else if (msg === 'ติดต่อเรา') {
+            await replyMessage(event.replyToken, [{ type: 'text', text: '☎️ ติดต่อเราได้ที่ support@example.com' }], quickReplyItems);
+            } else {
+            await replyMessage(event.replyToken, [{ type: 'text', text: 'กรุณาเลือกเมนูด้านล่าง' }], quickReplyItems);
+            }
         }
       } else if (event.type === 'postback') {
         await handlePostback(event);
@@ -41,7 +70,4 @@ app.post('/webhook', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
-
-// ใช้ HTTP ปกติ แทน HTTPS
 app.listen(PORT, () => console.log(`LINE OA Webhook running on http://localhost:${PORT}`));

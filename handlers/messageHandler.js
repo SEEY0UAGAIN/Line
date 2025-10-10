@@ -1,4 +1,3 @@
-// messageHandler.js
 const { queryDB1, queryDB2 } = require('../db');
 const redisClient = require('../redisClient');
 const { logEvent } = require('../auditLog');
@@ -10,12 +9,19 @@ require('dotenv').config();
 const LINE_MESSAGING_API = process.env.LINE_MESSAGING_API;
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
-// ส่งข้อความ Reply
-async function replyMessage(replyToken, messages) {
+// ส่งข้อความ Reply พร้อม Quick Reply
+async function replyMessage(replyToken, messages, quickReplyItems = []) {
   try {
+    const messagePayload = { replyToken, messages };
+
+    // เพิ่ม Quick Reply หากมี
+    if (quickReplyItems.length > 0) {
+      messagePayload.messages[0].quickReply = { items: quickReplyItems };
+    }
+
     await axios.post(
       `${LINE_MESSAGING_API}/reply`,
-      { replyToken, messages },
+      messagePayload,
       { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } }
     );
   } catch (error) {
@@ -70,26 +76,22 @@ async function processIdCardInput(userId, idCard, replyToken) {
     return;
   }
 
-  // บันทึก DB2
   try {
     await queryDB2(
       'INSERT INTO line_registered_users (line_user_id, id_card, registered_at) VALUES (?, ?, NOW())',
       [userId, idCard]
     );
 
-    // ลบ session ใน Redis
     await redisClient.del(`session:${userId}`);
 
-    // Step 3: สร้าง JWT token หลังลงทะเบียน
     const tokenPayload = {
       lineUserId: userId,
       id_card: idCard,
       first_name: userInfo.first_name,
       last_name: userInfo.last_name
     };
-    const jwtToken = createToken(tokenPayload, '24h'); // หมดอายุ 24 ชั่วโมง
+    const jwtToken = createToken(tokenPayload, '24h');
 
-    // ส่งข้อความยืนยัน + Token
     await replyMessage(replyToken, [
       {
         type: 'text',
@@ -101,7 +103,6 @@ async function processIdCardInput(userId, idCard, replyToken) {
       }
     ]);
 
-    // push message แจ้งเตือนเพิ่มเติม
     setTimeout(async () => {
       await pushMessage(userId, [
         {
