@@ -4,7 +4,7 @@ const redisClient = require('../redisClient');
 const { logEvent } = require('../auditLog');
 const { isValidIdCard } = require('../utils/validation');
 const axios = require('axios');
-const { createToken } = require('../jwtHelper'); // Step 3: JWT
+const { createToken } = require('../jwtHelper'); 
 require('dotenv').config();
 
 const LINE_MESSAGING_API = process.env.LINE_MESSAGING_API;
@@ -14,12 +14,9 @@ const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 async function replyMessage(replyToken, messages, quickReplyItems = []) {
   try {
     const messagePayload = { replyToken, messages };
-
-    // เพิ่ม Quick Reply หากมี
     if (quickReplyItems.length > 0) {
       messagePayload.messages[0].quickReply = { items: quickReplyItems };
     }
-
     await axios.post(
       `${LINE_MESSAGING_API}/reply`,
       messagePayload,
@@ -51,14 +48,16 @@ async function startRegistration(userId, replyToken) {
     return;
   }
 
-  // สร้าง Session ใน Redis
   await redisClient.set(
     `session:${userId}`,
     JSON.stringify({ step: 'awaiting_id_card', timestamp: Date.now() }),
-    { EX: 600 } // หมดอายุ session 10 นาที
+    { EX: 600 }
   );
 
-  await replyMessage(replyToken, [{ type: 'text', text: '📝 กรุณากรอกเลขบัตรประชาชน 13 หลัก' }]);
+  // ส่งแบบ Quick Reply แนะนำให้กรอกเลขบัตร
+  await replyMessage(replyToken, [
+    { type: 'text', text: '📝 กรุณากรอกเลขบัตรประชาชน 13 หลัก' }
+  ]);
   await logEvent('register.request', { userId, id_card: null });
 }
 
@@ -71,7 +70,6 @@ async function processIdCardInput(userId, idCard, replyToken) {
     return;
   }
 
-  // 🔹 Query ตรวจสอบเลขบัตรจาก HNOPD_MASTER + HNName (SQL Server)
   const sqlQuery = `
       DECLARE @date DATE = CAST(GETDATE() AS DATE);
       SELECT 
@@ -91,13 +89,10 @@ async function processIdCardInput(userId, idCard, replyToken) {
       ORDER BY OM.VN ASC
   `;
 
-  // เรียก queryDB1 แบบ named parameter
   const userInfoRows = await queryDB1(sqlQuery, {
     id_card: { type: sqlServer.VarChar, value: idCard }
   });
   const userInfo = userInfoRows[0];
-  const nameWithoutTitle = (userInfo.FirstName || '').replace(/^(นาย|นาง|นางสาว)/, '').trim();
-  const lastName = (userInfo.LastName || '').trim();
 
   if (!userInfo) {
     await replyMessage(replyToken, [
@@ -107,7 +102,9 @@ async function processIdCardInput(userId, idCard, replyToken) {
     return;
   }
 
-  // 🔹 บันทึกลง DB2 (MySQL)
+  const nameWithoutTitle = (userInfo.FirstName || '').replace(/^(นาย|นาง|นางสาว)/, '').trim();
+  const lastName = (userInfo.LastName || '').trim();
+
   try {
     await queryDB2(
       'INSERT INTO line_registered_users (line_user_id, id_card, registered_at) VALUES (?, ?, NOW())',
@@ -119,17 +116,12 @@ async function processIdCardInput(userId, idCard, replyToken) {
     const tokenPayload = {
       lineUserId: userId,
       id_card: idCard,
-      full_name: userInfo.FullName
+      full_name: `${nameWithoutTitle} ${lastName}`
     };
     const jwtToken = createToken(tokenPayload, '24h');
 
     await replyMessage(replyToken, [
-      { 
-        type: 'text', 
-        text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}`
-      }
-
-      // { type: 'text', text: `🛡️ Token สำหรับยืนยันตัวตนที่คีออสก์:\n${jwtToken}` }
+      { type: 'text', text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}` }
     ]);
 
     setTimeout(async () => {
@@ -148,6 +140,5 @@ async function processIdCardInput(userId, idCard, replyToken) {
     await logEvent('register.failed', { userId, id_card: idCard, reason: 'DB2 insert error' });
   }
 }
-
 
 module.exports = { startRegistration, processIdCardInput, replyMessage, pushMessage };

@@ -10,6 +10,8 @@ app.use(bodyParser.json());
 
 app.get('/webhook', (req, res) => res.send('LINE OA Webhook running'));
 
+app.use('/frontend', express.static(__dirname + '/frontend'));
+
 app.post('/webhook', async (req, res) => {
   try {
     const events = req.body.events;
@@ -98,6 +100,28 @@ app.post('/webhook', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send('Error');
+  }
+});
+
+app.post('/liff-register', async (req, res) => {
+  try {
+    const { userId, idCard } = req.body;
+
+    // เช็คเลขบัตร
+    const sessionStr = await redisClient.get(`session:${userId}`);
+    if (!/^\d{13}$/.test(idCard)) {
+      return res.json({ success: false, message: 'เลขบัตรไม่ถูกต้อง 13 หลัก' });
+    }
+
+    const { processIdCardInput } = require('./handlers/messageHandler');
+
+    // ใช้ฟังก์ชันเดิมตรวจสอบและบันทึก
+    await processIdCardInput(userId, idCard, null, true); // เพิ่ม parameter isLiff = true
+
+    res.json({ success: true, message: '✅ ลงทะเบียนสำเร็จ!' });
+  } catch (err) {
+    console.error(err);
+    res.json({ success: false, message: '❌ เกิดข้อผิดพลาด ลองใหม่อีกครั้ง' });
   }
 });
 
