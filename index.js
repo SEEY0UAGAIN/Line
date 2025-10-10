@@ -17,7 +17,7 @@ app.post('/webhook', async (req, res) => {
 
       // 🔹 Event follow: เมื่อผู้ใช้เพิ่ม OA
       if (event.type === 'follow') {
-        const { linkRichMenuToUser } = require('./richmenu/createRichMenu');
+        const { linkRichMenuToUser } = require('./richmenu/linkRichMenu');
         const RICH_MENU_ID = 'richmenu-e8b0e9ecc69a8e89e5ef25d071958132'; // ใส่ ID ของ Rich Menu ที่สร้างไว้
         await linkRichMenuToUser(event.source.userId, RICH_MENU_ID);
 

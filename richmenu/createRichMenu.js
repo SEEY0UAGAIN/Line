@@ -1,109 +1,38 @@
 const axios = require('axios');
+require('dotenv').config();
+const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+const fs = require('fs');
 
-const channelAccessToken = 'YOUR_CHANNEL_ACCESS_TOKEN';
-const richMenuImagePath = 'main_menu.jpg';
-
-const richMenu = {
-  size: { width: 800, height: 270 },
+const richMenuData = {
+  size: { width: 1200, height: 810 },
   selected: true,
   name: 'Main Menu',
   chatBarText: 'Tap here',
   areas: [
-    {
-      bounds: { x: 0, y: 0, width: 400, height: 270 },
-      action: { type: 'message', label: 'Register', text: 'ลงทะเบียน' }
-    },
-    {
-      bounds: { x: 400, y: 0, width: 400, height: 270 },
-      action: { type: 'message', label: 'Status', text: 'ตรวจสอบสถานะ' }
-    },
-    {
-      bounds: { x: 400, y: 0, width: 400, height: 270 },
-      action: { type: 'message', label: 'Status', text: 'ติดต่อเรา' }
-    }
+    { bounds: { x: 0, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
+    { bounds: { x: 400, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' } },
+    { bounds: { x: 800, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ติดต่อเรา', text: 'ติดต่อเรา' } }
   ]
 };
 
-// สร้าง Rich Menu
-const createRichMenu = async () => {
-  try {
-    const response = await axios.post(
-      'https://api.line.me/v2/bot/richmenu',
-      richMenu,
-      {
-        headers: {
-          'Authorization': `Bearer ${channelAccessToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    const richMenuId = response.data.richMenuId;
-    console.log('Rich Menu ID:', richMenuId);
-    return richMenuId;
-  } catch (error) {
-    console.error('Error creating rich menu:', error);
-  }
-};
-
-// อัปโหลดภาพสำหรับ Rich Menu
-const uploadRichMenuImage = async (richMenuId) => {
-  try {
-    const image = require('fs').createReadStream(richMenuImagePath);
-    const response = await axios.post(
-      `https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
-      image,
-      {
-        headers: {
-          'Authorization': `Bearer ${channelAccessToken}`,
-          'Content-Type': 'image/jpeg'
-        }
-      }
-    );
-    console.log('Image uploaded successfully');
-  } catch (error) {
-    console.error('Error uploading image:', error);
-  }
-};
-
-// ตั้งค่า Rich Menu เป็น Default
-const setDefaultRichMenu = async (richMenuId) => {
-  try {
-    await axios.post(
-      `https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`,
-      {},
-      {
-        headers: {
-          'Authorization': `Bearer ${channelAccessToken}`
-        }
-      }
-    );
-    console.log('Default rich menu set successfully');
-  } catch (error) {
-    console.error('Error setting default rich menu:', error);
-  }
-};
-
-// ประมวลผลทั้งหมด
-const setupRichMenu = async () => {
-  const richMenuId = await createRichMenu();
-  if (richMenuId) {
-    await uploadRichMenuImage(richMenuId);
-    await setDefaultRichMenu(richMenuId);
-  }
-};
-
-async function linkRichMenuToUser(userId, richMenuId) {
-  try {
-    await axios.post(
-      `https://api.line.me/v2/bot/user/${userId}/richmenu/${richMenuId}`,
-      {},
-      { headers: { 'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } }
-    );
-    console.log(`Linked Rich Menu to user ${userId}`);
-  } catch (error) {
-    console.error('Error linking rich menu:', error.response?.data || error.message);
-  }
+async function createRichMenu() {
+  const res = await axios.post('https://api.line.me/v2/bot/richmenu', richMenuData, {
+    headers: { 'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`, 'Content-Type': 'application/json' }
+  });
+  return res.data.richMenuId;
 }
-module.exports = { linkRichMenuToUser };
 
-setupRichMenu();
+async function uploadRichMenuImage(richMenuId, imagePath) {
+  const image = fs.createReadStream(imagePath);
+  await axios.post(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, image, {
+    headers: { 'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`, 'Content-Type': 'image/jpeg' }
+  });
+}
+
+async function setDefaultRichMenu(richMenuId) {
+  await axios.post(`https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`, {}, {
+    headers: { 'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` }
+  });
+}
+
+module.exports = { createRichMenu, uploadRichMenuImage, setDefaultRichMenu };
