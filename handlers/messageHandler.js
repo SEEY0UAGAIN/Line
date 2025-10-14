@@ -41,25 +41,63 @@ async function pushMessage(lineUserId, messages) {
 }
 
 // เริ่ม registration
+// async function startRegistration(userId, replyToken) {
+//   const rows = await queryDB2('SELECT * FROM line_registered_users WHERE line_user_id = ?', [userId]);
+//   if (rows.length > 0) {
+//     await replyMessage(replyToken, [{ type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }]);
+//     return;
+//   }
+
+//   await redisClient.set(
+//     `session:${userId}`,
+//     JSON.stringify({ step: 'awaiting_id_card', timestamp: Date.now() }),
+//     { EX: 600 }
+//   );
+
+//   // ส่งแบบ Quick Reply แนะนำให้กรอกเลขบัตร
+//   await replyMessage(replyToken, [
+//     { type: 'text', text: '📝 กรุณากรอกเลขบัตรประชาชน 13 หลัก' }
+//   ]);
+//   await logEvent('register.request', { userId, id_card: null });
+// }
+
+// handlers/messageHandler.js
+
 async function startRegistration(userId, replyToken) {
-  const rows = await queryDB2('SELECT * FROM line_registered_users WHERE line_user_id = ?', [userId]);
-  if (rows.length > 0) {
-    await replyMessage(replyToken, [{ type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }]);
+  const liffUrl = "https://liff.line.me/2008268424-1GqpgeO5"; // 🔹 URL ของ LIFF ID ที่ตรงกับ register.html
+
+  const message = [
+    {
+      type: "template",
+      altText: "ลงทะเบียน",
+      template: {
+        type: "buttons",
+        thumbnailImageUrl: "https://cdn-icons-png.flaticon.com/512/747/747376.png",
+        title: "ลงทะเบียนผู้ใช้งาน",
+        text: "กรุณากดปุ่มด้านล่างเพื่อกรอกเลขบัตรประชาชน",
+        actions: [
+          {
+            type: "uri",
+            label: "กรอกข้อมูล",
+            uri: liffUrl
+          }
+        ]
+      }
+    }
+  ];
+
+  // ตรวจสอบว่า replyToken มีค่า
+  if (!replyToken) {
+    console.warn('No replyToken provided, skipping replyMessage');
     return;
   }
 
-  await redisClient.set(
-    `session:${userId}`,
-    JSON.stringify({ step: 'awaiting_id_card', timestamp: Date.now() }),
-    { EX: 600 }
-  );
-
-  // ส่งแบบ Quick Reply แนะนำให้กรอกเลขบัตร
-  await replyMessage(replyToken, [
-    { type: 'text', text: '📝 กรุณากรอกเลขบัตรประชาชน 13 หลัก' }
-  ]);
-  await logEvent('register.request', { userId, id_card: null });
+  await replyMessage(replyToken, message);
 }
+
+module.exports = { startRegistration };
+
+
 
 // ประมวลผลเลขบัตร
 async function processIdCardInput(userId, idCard, replyToken) {
