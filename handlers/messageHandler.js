@@ -42,8 +42,45 @@ async function pushMessage(lineUserId, messages) {
 
 // เริ่ม registration → ส่ง LIFF template ให้กรอกเลขบัตร
 async function startRegistration(userId, replyToken) {
-  const liffUrl = "https://liff.line.me/2008268424-1GqpgeO5"; // LIFF register.html
+  const existing = await queryDB2(
+    'SELECT id_card FROM line_registered_users WHERE line_user_id = ?',
+    [userId]
+  );
 
+  let nameWithoutTitle = 'ผู้ใช้งาน';
+  let lastName = '';
+
+  if (existing.length > 0) {
+    const idCard = existing[0].id_card;
+
+    const sqlQuery = `
+      SELECT N.FirstName, N.LastName
+      FROM HNOPD_MASTER OM
+      LEFT JOIN HNName N ON OM.HN = N.HN
+      WHERE N.ID = @id_card
+      ORDER BY OM.VN ASC
+    `;
+    const userInfoRows = await queryDB1(sqlQuery, {
+      id_card: { type: sqlServer.VarChar, value: idCard }
+    });
+
+    if (userInfoRows.length > 0) {
+      nameWithoutTitle = (userInfoRows[0].FirstName || '').replace(/^(นาย|นาง|นางสาว)/, '').trim();
+      lastName = (userInfoRows[0].LastName || '').trim();
+    }
+
+    // ส่งข้อความต้อนรับผู้ที่เคยลงทะเบียน
+    const welcomeMessage = `✅ คุณได้ลงทะเบียนไว้แล้ว\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}`;
+    if (replyToken) {
+      await replyMessage(replyToken, [{ type: 'text', text: welcomeMessage }]);
+    } else {
+      await pushMessage(userId, [{ type: 'text', text: welcomeMessage }]);
+    }
+    return; // ไม่ต้องส่ง LIFF form อีก
+  }
+
+  // ถ้ายังไม่ลงทะเบียน → ส่ง LIFF form
+  const liffUrl = "https://liff.line.me/2008268424-1GqpgeO5"; 
   const message = [
     {
       type: "template",
@@ -54,11 +91,7 @@ async function startRegistration(userId, replyToken) {
         title: "ลงทะเบียนผู้ใช้งาน",
         text: "กรุณากดปุ่มด้านล่างเพื่อกรอกเลขบัตรประชาชน",
         actions: [
-          {
-            type: "uri",
-            label: "กรอกข้อมูล",
-            uri: liffUrl
-          }
+          { type: "uri", label: "กรอกข้อมูล", uri: liffUrl }
         ]
       }
     }
@@ -76,37 +109,12 @@ async function startRegistration(userId, replyToken) {
 // ประมวลผลเลขบัตรและลงทะเบียน
 async function processIdCardInput(userId, idCard, replyToken) {
   if (!isValidIdCard(idCard)) {
-    if (replyToken) {
-      await replyMessage(replyToken, [
-        { type: 'text', text: '❌ กรุณากรอกเลขบัตรประชาชน 13 หลักให้ถูกต้อง' }
-      ]);
-    } else {
-      await pushMessage(userId, [
-        { type: 'text', text: '❌ กรุณากรอกเลขบัตรประชาชน 13 หลักให้ถูกต้อง' }
-      ]);
-    }
+    await replyMessage(replyToken, [
+      { type: 'text', text: '❌ กรุณากรอกเลขบัตรประชาชน 13 หลักให้ถูกต้อง' }
+    ]);
     return;
   }
 
-  // ตรวจสอบว่าผู้ใช้ลงทะเบียนแล้วหรือยัง
-  const existing = await queryDB2(
-    'SELECT * FROM line_registered_users WHERE line_user_id = ?',
-    [userId]
-  );
-  if (existing.length > 0) {
-    if (replyToken) {
-      await replyMessage(replyToken, [
-        { type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }
-      ]);
-    } else {
-      await pushMessage(userId, [
-        { type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }
-      ]);
-    }
-    return;
-  }
-
-  // ดึงข้อมูลผู้ใช้จาก HNOPD_MASTER
   const sqlQuery = `
     SELECT 
       N.HN,
@@ -129,15 +137,9 @@ async function processIdCardInput(userId, idCard, replyToken) {
   const userInfo = userInfoRows[0];
 
   if (!userInfo) {
-    if (replyToken) {
-      await replyMessage(replyToken, [
-        { type: 'text', text: '❌ ไม่พบข้อมูลเลขบัตรนี้ในระบบวันนี้' }
-      ]);
-    } else {
-      await pushMessage(userId, [
-        { type: 'text', text: '❌ ไม่พบข้อมูลเลขบัตรนี้ในระบบวันนี้' }
-      ]);
-    }
+    await replyMessage(replyToken, [
+      { type: 'text', text: '❌ ไม่พบข้อมูลเลขบัตรนี้ในระบบวันนี้' }
+    ]);
     await logEvent('register.failed', { userId, id_card: idCard, reason: 'Not found in HNOPD_MASTER' });
     return;
   }
@@ -147,8 +149,8 @@ async function processIdCardInput(userId, idCard, replyToken) {
 
   try {
     await queryDB2(
-      'INSERT INTO line_registered_users (line_user_id, id_card, registered_at) VALUES (?, ?, NOW())',
-      [userId, idCard]
+      'INSERT INTO line_registered_users (line_user_id, id_card, full_name, registered_at) VALUES (?, ?, ?, NOW())',
+      [userId, idCard, `${nameWithoutTitle} ${lastName}`]
     );
 
     await redisClient.del(`session:${userId}`);
@@ -182,15 +184,21 @@ async function processIdCardInput(userId, idCard, replyToken) {
 
   } catch (error) {
     console.error(error);
-    if (replyToken) {
-      await replyMessage(replyToken, [
-        { type: 'text', text: '❌ เกิดข้อผิดพลาดในการลงทะเบียน\nกรุณาลองใหม่อีกครั้ง' }
-      ]);
-    } else {
-      await pushMessage(userId, [
-        { type: 'text', text: '❌ เกิดข้อผิดพลาดในการลงทะเบียน\nกรุณาลองใหม่อีกครั้ง' }
-      ]);
+    if (error.code === 'ER_DUP_ENTRY') {
+      // กรณี user ลงทะเบียนแล้ว (Duplicate)
+      const welcomeMessage = `✅ คุณได้ลงทะเบียนไว้แล้ว\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}`;
+      if (replyToken) {
+        await replyMessage(replyToken, [{ type: 'text', text: welcomeMessage }]);
+      } else {
+        await pushMessage(userId, [{ type: 'text', text: welcomeMessage }]);
+      }
+      await logEvent('register.failed', { userId, id_card: idCard, reason: 'Duplicate entry' });
+      return;
     }
+
+    await replyMessage(replyToken, [
+      { type: 'text', text: '❌ เกิดข้อผิดพลาดในการลงทะเบียน\nกรุณาลองใหม่อีกครั้ง' }
+    ]);
     await logEvent('register.failed', { userId, id_card: idCard, reason: 'DB2 insert error' });
   }
 }
