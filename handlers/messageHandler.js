@@ -40,31 +40,9 @@ async function pushMessage(lineUserId, messages) {
   }
 }
 
-// เริ่ม registration
-// async function startRegistration(userId, replyToken) {
-//   const rows = await queryDB2('SELECT * FROM line_registered_users WHERE line_user_id = ?', [userId]);
-//   if (rows.length > 0) {
-//     await replyMessage(replyToken, [{ type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }]);
-//     return;
-//   }
-
-//   await redisClient.set(
-//     `session:${userId}`,
-//     JSON.stringify({ step: 'awaiting_id_card', timestamp: Date.now() }),
-//     { EX: 600 }
-//   );
-
-//   // ส่งแบบ Quick Reply แนะนำให้กรอกเลขบัตร
-//   await replyMessage(replyToken, [
-//     { type: 'text', text: '📝 กรุณากรอกเลขบัตรประชาชน 13 หลัก' }
-//   ]);
-//   await logEvent('register.request', { userId, id_card: null });
-// }
-
-// handlers/messageHandler.js
-
+// เริ่ม registration → ส่ง LIFF template ให้กรอกเลขบัตร
 async function startRegistration(userId, replyToken) {
-  const liffUrl = "https://liff.line.me/2008268424-1GqpgeO5"; // 🔹 URL ของ LIFF ID ที่ตรงกับ register.html
+  const liffUrl = "https://liff.line.me/2008268424-1GqpgeO5"; // LIFF register.html
 
   const message = [
     {
@@ -86,45 +64,63 @@ async function startRegistration(userId, replyToken) {
     }
   ];
 
-  // ตรวจสอบว่า replyToken มีค่า
-  if (!replyToken) {
-    console.warn('No replyToken provided, skipping replyMessage');
-    return;
+  if (replyToken) {
+    await replyMessage(replyToken, message);
+  } else {
+    await pushMessage(userId, [
+      { type: 'text', text: '✅ กรุณากดปุ่มด้านล่างเพื่อกรอกเลขบัตรประชาชน' }
+    ]);
   }
-
-  await replyMessage(replyToken, message);
 }
 
-module.exports = { startRegistration };
-
-
-
-// ประมวลผลเลขบัตร
+// ประมวลผลเลขบัตรและลงทะเบียน
 async function processIdCardInput(userId, idCard, replyToken) {
   if (!isValidIdCard(idCard)) {
-    await replyMessage(replyToken, [
-      { type: 'text', text: '❌ กรุณากรอกเลขบัตรประชาชน 13 หลักให้ถูกต้อง' }
-    ]);
+    if (replyToken) {
+      await replyMessage(replyToken, [
+        { type: 'text', text: '❌ กรุณากรอกเลขบัตรประชาชน 13 หลักให้ถูกต้อง' }
+      ]);
+    } else {
+      await pushMessage(userId, [
+        { type: 'text', text: '❌ กรุณากรอกเลขบัตรประชาชน 13 หลักให้ถูกต้อง' }
+      ]);
+    }
     return;
   }
 
+  // ตรวจสอบว่าผู้ใช้ลงทะเบียนแล้วหรือยัง
+  const existing = await queryDB2(
+    'SELECT * FROM line_registered_users WHERE line_user_id = ?',
+    [userId]
+  );
+  if (existing.length > 0) {
+    if (replyToken) {
+      await replyMessage(replyToken, [
+        { type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }
+      ]);
+    } else {
+      await pushMessage(userId, [
+        { type: 'text', text: '❌ คุณได้ลงทะเบียนไว้แล้ว' }
+      ]);
+    }
+    return;
+  }
+
+  // ดึงข้อมูลผู้ใช้จาก HNOPD_MASTER
   const sqlQuery = `
-      DECLARE @date DATE = CAST(GETDATE() AS DATE);
-      SELECT 
-          N.HN,
-          N.ID AS CID,
-          N.InitialName,
-          N.FirstName,
-          N.LastName,
-          N.BirthDateTime AS DOB,
-          OM.DefaultRightCode AS DefaultRight,
-          OM.VN
-      FROM HNOPD_MASTER OM
-      LEFT JOIN HNName N ON OM.HN = N.HN
-      WHERE OM.VisitDate >= @date
-        AND OM.VisitDate < DATEADD(DAY, 1, @date)
-        AND N.ID = @id_card
-      ORDER BY OM.VN ASC
+    SELECT 
+      N.HN,
+      N.ID AS CID,
+      N.InitialName,
+      N.FirstName,
+      N.LastName,
+      N.BirthDateTime AS DOB,
+      OM.DefaultRightCode AS DefaultRight,
+      OM.VN
+    FROM HNOPD_MASTER OM
+    LEFT JOIN HNName N ON OM.HN = N.HN
+    WHERE N.ID = @id_card
+    ORDER BY OM.VN ASC
   `;
 
   const userInfoRows = await queryDB1(sqlQuery, {
@@ -133,9 +129,15 @@ async function processIdCardInput(userId, idCard, replyToken) {
   const userInfo = userInfoRows[0];
 
   if (!userInfo) {
-    await replyMessage(replyToken, [
-      { type: 'text', text: '❌ ไม่พบข้อมูลเลขบัตรนี้ในระบบวันนี้' }
-    ]);
+    if (replyToken) {
+      await replyMessage(replyToken, [
+        { type: 'text', text: '❌ ไม่พบข้อมูลเลขบัตรนี้ในระบบวันนี้' }
+      ]);
+    } else {
+      await pushMessage(userId, [
+        { type: 'text', text: '❌ ไม่พบข้อมูลเลขบัตรนี้ในระบบวันนี้' }
+      ]);
+    }
     await logEvent('register.failed', { userId, id_card: idCard, reason: 'Not found in HNOPD_MASTER' });
     return;
   }
@@ -158,10 +160,18 @@ async function processIdCardInput(userId, idCard, replyToken) {
     };
     const jwtToken = createToken(tokenPayload, '24h');
 
-    await replyMessage(replyToken, [
-      { type: 'text', text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}` }
-    ]);
+    // ส่งข้อความยินดีต้อนรับพร้อมชื่อ–นามสกุล
+    if (replyToken) {
+      await replyMessage(replyToken, [
+        { type: 'text', text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}` }
+      ]);
+    } else {
+      await pushMessage(userId, [
+        { type: 'text', text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}` }
+      ]);
+    }
 
+    // แจ้งเตือนเพิ่มเติมหลัง 2 วินาที
     setTimeout(async () => {
       await pushMessage(userId, [
         { type: 'text', text: '🎉 ขอบคุณที่ลงทะเบียนกับเรา\nคุณจะได้รับข้อความแจ้งเตือนสำคัญผ่าน LINE OA นี้' }
@@ -172,9 +182,15 @@ async function processIdCardInput(userId, idCard, replyToken) {
 
   } catch (error) {
     console.error(error);
-    await replyMessage(replyToken, [
-      { type: 'text', text: '❌ เกิดข้อผิดพลาดในการลงทะเบียน\nกรุณาลองใหม่อีกครั้ง' }
-    ]);
+    if (replyToken) {
+      await replyMessage(replyToken, [
+        { type: 'text', text: '❌ เกิดข้อผิดพลาดในการลงทะเบียน\nกรุณาลองใหม่อีกครั้ง' }
+      ]);
+    } else {
+      await pushMessage(userId, [
+        { type: 'text', text: '❌ เกิดข้อผิดพลาดในการลงทะเบียน\nกรุณาลองใหม่อีกครั้ง' }
+      ]);
+    }
     await logEvent('register.failed', { userId, id_card: idCard, reason: 'DB2 insert error' });
   }
 }
