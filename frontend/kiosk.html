@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiosk QR Scan</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin: 20px; }
+    #qr-result { margin-top: 20px; font-size: 1.2em; }
+  </style>
+</head>
+<body>
+  <h1>Kiosk - สแกน QR Code</h1>
+  <video id="preview" width="300" height="300"></video>
+  <div id="qr-result">รอการสแกน QR Code...</div>
+
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="kiosk.js"></script>
+</body>
+</html>
