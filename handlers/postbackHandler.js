@@ -1,5 +1,6 @@
 const { startRegistration, replyMessage, checkUserRights } = require('./messageHandler');
 const { queryDB2 } = require('../db');
+const { formatRightsMessage } = require('../utils/rightsMapper'); // ← เพิ่มบรรทัดนี้
 
 async function handlePostback(event) {
   const userId = event.source.userId;
@@ -13,12 +14,9 @@ async function handlePostback(event) {
     if (rows.length > 0) {
       const idCard = rows[0].id_card;
       const userRights = await checkUserRights(idCard);
-      const rightsMessage = userRights.length > 0 
-        ? `🔑 สิทธิ์ของคุณ: ${userRights.join(', ')}` 
-        : '⚠️ คุณยังไม่มีสิทธิ์ใช้งาน';
+      const rightsMessage = formatRightsMessage(userRights); // ← ใช้ฟังก์ชัน formatRightsMessage
 
       await replyMessage(replyToken, [
-        { type: 'text', text: '✅ คุณได้ลงทะเบียนแล้ว' },
         { type: 'text', text: rightsMessage }
       ]);
     } else {

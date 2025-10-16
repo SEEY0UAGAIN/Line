@@ -2,168 +2,384 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>ลงทะเบียน</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ลงทะเบียนผู้ใช้งาน</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; font-family:'Roboto', sans-serif; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
     body {
-      height: 100vh;
-      background: linear-gradient(135deg, #6c5ce7, #00b894);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden;
-    }
-
-    /* เอฟเฟกต์อนิเมชันฟอง */
-    .bubble {
-      position: absolute;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.15);
-      animation: float 10s infinite;
-      pointer-events: none;
-    }
-
-    @keyframes float {
-      0% { transform: translateY(100vh) scale(0); }
-      50% { transform: translateY(50vh) scale(1); }
-      100% { transform: translateY(-10vh) scale(0); }
+      font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
     }
 
     .container {
-      position: relative;
-      z-index: 10;
-      background: rgba(255,255,255,0.95);
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
       border-radius: 20px;
-      padding: 50px 40px;
-      width: 100%;
-      max-width: 450px;
+      padding: 30px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    .header {
       text-align: center;
-      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
-      animation: fadeIn 1s ease forwards;
-    }
-
-    @keyframes fadeIn {
-      0% { opacity:0; transform: translateY(30px); }
-      100% { opacity:1; transform: translateY(0); }
-    }
-
-    .container h2 {
-      font-size: 24px;
-      color: #6c5ce7;
       margin-bottom: 30px;
-      text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
     }
 
-    input[type="text"] {
+    .header h1 {
+      color: #667eea;
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      color: #333;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .required {
+      color: #e74c3c;
+    }
+
+    input[type="text"],
+    input[type="tel"],
+    input[type="date"] {
       width: 100%;
-      padding: 15px 20px;
-      font-size: 18px;
-      border-radius: 12px;
-      border: 2px solid #ddd;
-      margin-bottom: 25px;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
       transition: all 0.3s;
     }
 
-    input[type="text"]:focus {
-      border-color: #6c5ce7;
-      box-shadow: 0 0 10px rgba(108,92,231,0.5);
+    input:focus {
       outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
-    button {
+    .checkbox-group {
+      display: flex;
+      align-items: flex-start;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      margin-right: 12px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .checkbox-group label {
+      margin: 0;
+      font-weight: 400;
+      font-size: 13px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    .btn {
       width: 100%;
       padding: 15px;
-      font-size: 18px;
-      border:none;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #6c5ce7, #00b894);
-      color: #fff;
-      font-weight: 500;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.3s;
-      box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+      transition: transform 0.2s;
     }
 
-    button:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 12px 20px rgba(0,0,0,0.3);
+    .btn:hover {
+      transform: translateY(-2px);
     }
 
-    .line-icon {
-      display: inline-block;
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .error {
+      color: #e74c3c;
+      font-size: 13px;
+      margin-top: 5px;
+      display: none;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
       width: 40px;
       height: 40px;
-      background: url('https://scdn.line-apps.com/n/line_reg/icon/line-icon.png') no-repeat center/cover;
-      vertical-align: middle;
-      margin-left: 10px;
-      animation: bounce 1.5s infinite;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
     }
 
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
 
-    @media (max-width: 480px) {
-      .container {
-        padding: 30px 20px;
-      }
-
-      h2 { font-size: 20px; }
-      input, button { font-size: 16px; padding: 12px; }
+    .hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
     }
   </style>
 </head>
 <body>
-  <!-- สร้างฟองเบื้องหลัง -->
-  <script>
-    for(let i=0; i<15; i++){
-      let bubble = document.createElement('div');
-      bubble.classList.add('bubble');
-      bubble.style.width = bubble.style.height = Math.random()*60 + 20 + 'px';
-      bubble.style.left = Math.random()*100 + 'vw';
-      bubble.style.animationDuration = 8 + Math.random()*7 + 's';
-      document.body.appendChild(bubble);
-    }
-  </script>
-
   <div class="container">
-    <h2>กรอกเลขบัตรประชาชน 13 หลัก <span class="line-icon"></span></h2>
-    <input type="text" id="idCard" placeholder="เลขบัตรประชาชน 13 หลัก">
-    <button onclick="submitIdCard()">ส่งข้อมูล</button>
+    <div class="header">
+      <h1>🏥 ลงทะเบียนผู้ใช้งาน</h1>
+      <p>กรุณากรอกข้อมูลเพื่อตรวจสอบสิทธิ์การรักษา</p>
+    </div>
+
+    <form id="registerForm">
+      <div class="form-group">
+        <label>ชื่อ <span class="required">*</span></label>
+        <input type="text" id="firstName" placeholder="กรอกชื่อ" required>
+        <div class="error" id="firstNameError">กรุณากรอกชื่อ</div>
+      </div>
+
+      <div class="form-group">
+        <label>นามสกุล <span class="required">*</span></label>
+        <input type="text" id="lastName" placeholder="กรอกนามสกุล" required>
+        <div class="error" id="lastNameError">กรุณากรอกนามสกุล</div>
+      </div>
+
+      <div class="form-group">
+        <label>เลขบัตรประชาชน <span class="required">*</span></label>
+        <input type="text" id="idCard" placeholder="1234567890123" maxlength="13" required>
+        <div class="hint">กรอกเลขบัตรประชาชน 13 หลัก</div>
+        <div class="error" id="idCardError">เลขบัตรประชาชนไม่ถูกต้อง</div>
+      </div>
+
+      <div class="form-group">
+        <label>วันเกิด <span class="required">*</span></label>
+        <input type="date" id="birthDate" required>
+        <div class="error" id="birthDateError">กรุณาเลือกวันเกิด</div>
+      </div>
+
+      <div class="form-group">
+        <label>เบอร์โทรศัพท์ <span class="required">*</span></label>
+        <input type="tel" id="phone" placeholder="0812345678" maxlength="10" required>
+        <div class="hint">กรอกเบอร์โทรศัพท์ 10 หลัก</div>
+        <div class="error" id="phoneError">เบอร์โทรศัพท์ไม่ถูกต้อง</div>
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="pdpaConsent" required>
+        <label for="pdpaConsent">
+          <span class="required">*</span> ข้าพเจ้ายินยอมให้โรงพยาบาลเก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลของข้าพเจ้า 
+          เพื่อวัตถุประสงค์ในการให้บริการทางการแพทย์ และการติดต่อสื่อสารเกี่ยวกับการรักษาพยาบาล 
+          ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562
+        </label>
+      </div>
+      <div class="error" id="pdpaError">กรุณายอมรับเงื่อนไข PDPA</div>
+
+      <button type="submit" class="btn" id="submitBtn">ยืนยันการลงทะเบียน</button>
+    </form>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>กำลังตรวจสอบข้อมูล...</p>
+    </div>
   </div>
 
   <script>
     let userId = null;
 
-    async function liffInit() {
-      await liff.init({ liffId: "2008268424-1GqpgeO5" });
-      userId = liff.getContext().userId;
-      console.log("LINE User ID:", userId);
-    }
-
-    async function submitIdCard() {
-      const idCard = document.getElementById('idCard').value.trim();
-      if (!/^\d{13}$/.test(idCard)) {
-        alert("กรุณากรอกเลขบัตรประชาชน 13 หลัก");
-        return;
-      }
-
-      const res = await fetch('/liff-register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, idCard })
+    // Initialize LIFF
+    liff.init({ liffId: '2008268424-1GqpgeO5' }) // เปลี่ยนเป็น LIFF ID ของคุณ
+      .then(() => {
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          liff.getProfile().then(profile => {
+            userId = profile.userId;
+          });
+        }
+      })
+      .catch(err => {
+        console.error('LIFF init failed', err);
+        alert('ไม่สามารถเชื่อมต่อได้ กรุณาเปิดผ่าน LINE');
       });
 
-      const data = await res.json();
-      alert(data.message);
+    // ตรวจสอบเลขบัตรประชาชนแบบ Real-time
+    function validateIdCard(idCard) {
+      if (!/^\d{13}$/.test(idCard)) return false;
+      
+      let sum = 0;
+      for (let i = 0; i < 12; i++) {
+        sum += parseInt(idCard.charAt(i)) * (13 - i);
+      }
+      const checkDigit = (11 - (sum % 11)) % 10;
+      return checkDigit === parseInt(idCard.charAt(12));
     }
 
-    liffInit();
+    // ตรวจสอบเบอร์โทรศัพท์
+    function validatePhone(phone) {
+      return /^0[0-9]{9}$/.test(phone);
+    }
+
+    // Real-time validation
+    document.getElementById('idCard').addEventListener('input', function(e) {
+      const value = e.target.value.replace(/[^0-9]/g, '');
+      e.target.value = value;
+      
+      const errorEl = document.getElementById('idCardError');
+      if (value.length === 13) {
+        if (validateIdCard(value)) {
+          errorEl.style.display = 'none';
+          e.target.style.borderColor = '#27ae60';
+        } else {
+          errorEl.textContent = 'เลขบัตรประชาชนไม่ถูกต้อง';
+          errorEl.style.display = 'block';
+          e.target.style.borderColor = '#e74c3c';
+        }
+      }
+    });
+
+    document.getElementById('phone').addEventListener('input', function(e) {
+      const value = e.target.value.replace(/[^0-9]/g, '');
+      e.target.value = value;
+      
+      const errorEl = document.getElementById('phoneError');
+      if (value.length === 10) {
+        if (validatePhone(value)) {
+          errorEl.style.display = 'none';
+          e.target.style.borderColor = '#27ae60';
+        } else {
+          errorEl.textContent = 'เบอร์โทรศัพท์ต้องขึ้นต้นด้วย 0';
+          errorEl.style.display = 'block';
+          e.target.style.borderColor = '#e74c3c';
+        }
+      }
+    });
+
+    // Form submission
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      // Reset errors
+      document.querySelectorAll('.error').forEach(el => el.style.display = 'none');
+      
+      // Get form values
+      const firstName = document.getElementById('firstName').value.trim();
+      const lastName = document.getElementById('lastName').value.trim();
+      const idCard = document.getElementById('idCard').value.trim();
+      const birthDate = document.getElementById('birthDate').value;
+      const phone = document.getElementById('phone').value.trim();
+      const pdpaConsent = document.getElementById('pdpaConsent').checked;
+      
+      // Validate
+      let hasError = false;
+      
+      if (!firstName) {
+        document.getElementById('firstNameError').style.display = 'block';
+        hasError = true;
+      }
+      
+      if (!lastName) {
+        document.getElementById('lastNameError').style.display = 'block';
+        hasError = true;
+      }
+      
+      if (!validateIdCard(idCard)) {
+        document.getElementById('idCardError').style.display = 'block';
+        hasError = true;
+      }
+      
+      if (!birthDate) {
+        document.getElementById('birthDateError').style.display = 'block';
+        hasError = true;
+      }
+      
+      if (!validatePhone(phone)) {
+        document.getElementById('phoneError').style.display = 'block';
+        hasError = true;
+      }
+      
+      if (!pdpaConsent) {
+        document.getElementById('pdpaError').style.display = 'block';
+        hasError = true;
+      }
+      
+      if (hasError) return;
+      
+      // Show loading
+      document.getElementById('registerForm').style.display = 'none';
+      document.getElementById('loading').classList.add('show');
+      
+      try {
+        const response = await fetch('/liff-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userId,
+            firstName: firstName,
+            lastName: lastName,
+            idCard: idCard,
+            birthDate: birthDate,
+            phone: phone,
+            pdpaConsent: pdpaConsent
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('✅ ลงทะเบียนสำเร็จ!\nกรุณากลับไปที่ LINE เพื่อดูข้อมูลสิทธิ์ของคุณ');
+          liff.closeWindow();
+        } else {
+          alert('❌ ' + result.message);
+          document.getElementById('registerForm').style.display = 'block';
+          document.getElementById('loading').classList.remove('show');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+        document.getElementById('registerForm').style.display = 'block';
+        document.getElementById('loading').classList.remove('show');
+      }
+    });
   </script>
 </body>
 </html>

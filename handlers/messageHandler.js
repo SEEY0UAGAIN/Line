@@ -107,7 +107,7 @@ async function startRegistration(userId, replyToken) {
     return;
   }
 
-  const liffUrl = "https://liff.line.me/2008268424-1GqpgeO5"; 
+  const liffUrl = "https://liff.line.me/2008268424-1GqpgeO5";
   const message = [
     {
       type: "template",
