@@ -40,6 +40,22 @@ async function pushMessage(lineUserId, messages) {
   }
 }
 
+// ตรวจสอบสิทธิ์ผู้ใช้งาน
+async function checkUserRights(idCard) {
+  const sqlQuery = `
+    SELECT OM.DefaultRightCode
+    FROM HNOPD_MASTER OM
+    LEFT JOIN HNName N ON OM.HN = N.HN
+    WHERE N.ID = @id_card
+  `;
+  const rows = await queryDB1(sqlQuery, { id_card: { type: sqlServer.VarChar, value: idCard } });
+  if (!rows.length) return [];
+
+  // ดึง DefaultRightCode ของผู้ใช้ทั้งหมด
+  const rights = rows.map(r => r.DefaultRightCode);
+  return rights;
+}
+
 // เริ่ม registration → ส่ง LIFF template ให้กรอกเลขบัตร
 async function startRegistration(userId, replyToken) {
   const existing = await queryDB2(
@@ -69,17 +85,28 @@ async function startRegistration(userId, replyToken) {
       lastName = (userInfoRows[0].LastName || '').trim();
     }
 
-    // ส่งข้อความต้อนรับผู้ที่เคยลงทะเบียน
     const welcomeMessage = `✅ คุณได้ลงทะเบียนไว้แล้ว\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}`;
+
+    // ตรวจสอบสิทธิ์ผู้ใช้
+    const userRights = await checkUserRights(idCard);
+    const rightsMessage = userRights.length > 0 
+      ? `🔑 สิทธิ์ของคุณ: ${userRights.join(', ')}` 
+      : '⚠️ คุณยังไม่มีสิทธิ์ใช้งาน';
+
     if (replyToken) {
-      await replyMessage(replyToken, [{ type: 'text', text: welcomeMessage }]);
+      await replyMessage(replyToken, [
+        { type: 'text', text: welcomeMessage },
+        { type: 'text', text: rightsMessage }
+      ]);
     } else {
-      await pushMessage(userId, [{ type: 'text', text: welcomeMessage }]);
+      await pushMessage(userId, [
+        { type: 'text', text: welcomeMessage },
+        { type: 'text', text: rightsMessage }
+      ]);
     }
-    return; // ไม่ต้องส่ง LIFF form อีก
+    return;
   }
 
-  // ถ้ายังไม่ลงทะเบียน → ส่ง LIFF form
   const liffUrl = "https://liff.line.me/2008268424-1GqpgeO5"; 
   const message = [
     {
@@ -162,7 +189,7 @@ async function processIdCardInput(userId, idCard, replyToken) {
     };
     const jwtToken = createToken(tokenPayload, '24h');
 
-    // ส่งข้อความยินดีต้อนรับพร้อมชื่อ–นามสกุล
+    // ส่งข้อความยินดีต้อนรับ
     if (replyToken) {
       await replyMessage(replyToken, [
         { type: 'text', text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}` }
@@ -172,6 +199,14 @@ async function processIdCardInput(userId, idCard, replyToken) {
         { type: 'text', text: `✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}` }
       ]);
     }
+
+    // แจ้งสิทธิ์ผู้ใช้
+    const userRights = await checkUserRights(idCard);
+    const rightsMessage = userRights.length > 0 
+      ? `🔑 สิทธิ์ของคุณ: ${userRights.join(', ')}` 
+      : '⚠️ คุณยังไม่มีสิทธิ์ใช้งาน';
+
+    await pushMessage(userId, [{ type: 'text', text: rightsMessage }]);
 
     // แจ้งเตือนเพิ่มเติมหลัง 2 วินาที
     setTimeout(async () => {
@@ -185,7 +220,6 @@ async function processIdCardInput(userId, idCard, replyToken) {
   } catch (error) {
     console.error(error);
     if (error.code === 'ER_DUP_ENTRY') {
-      // กรณี user ลงทะเบียนแล้ว (Duplicate)
       const welcomeMessage = `✅ คุณได้ลงทะเบียนไว้แล้ว\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}`;
       if (replyToken) {
         await replyMessage(replyToken, [{ type: 'text', text: welcomeMessage }]);
@@ -203,4 +237,4 @@ async function processIdCardInput(userId, idCard, replyToken) {
   }
 }
 
-module.exports = { startRegistration, processIdCardInput, replyMessage, pushMessage };
+module.exports = { startRegistration, processIdCardInput, replyMessage, pushMessage, checkUserRights };
