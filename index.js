@@ -1,5 +1,3 @@
-// index.js - Enhanced API Endpoint
-
 const express = require('express');
 const bodyParser = require('body-parser');
 const { 
@@ -10,6 +8,7 @@ const {
 } = require('./handlers/messageHandler');
 const redisClient = require('./redisClient');
 const { handlePostback } = require('./handlers/postbackHandler');
+const queueRouter = require('./routes');
 require('dotenv').config();
 
 const app = express();
@@ -17,6 +16,7 @@ app.use(bodyParser.json());
 
 app.get('/webhook', (req, res) => res.send('LINE OA Webhook running'));
 
+app.use('/queue', queueRouter);
 // Static files สำหรับ LIFF
 app.use('/frontend', express.static(__dirname + '/frontend'));
 
@@ -226,6 +226,31 @@ app.post('/api/check-rights', async (req, res) => {
 
   } catch (error) {
     console.error('API check-rights error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+
+// API สำหรับเรียกคิวจากหน้าจอแสดงผล
+app.post('/api/call-pharmacy-queue', async (req, res) => {
+  try {
+    const { vn } = req.body;
+    
+    if (!vn) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing VN parameter' 
+      });
+    }
+
+    const { markQueueAsCalled } = require('./pharmacyQueueMonitor');
+    const result = await markQueueAsCalled(vn);
+
+    res.json(result);
+  } catch (error) {
+    console.error('API call-pharmacy-queue error:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Internal server error' 

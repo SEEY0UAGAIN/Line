@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { registerQueue, getQueueStatus } = require('./handlers/queueHandler');
+const { registerQueue, getQueueStatus, updateQueueStatus } = require('./handlers/queueHandler');
 
-router.post('/queue/register', registerQueue);
-router.get('/queue/status', getQueueStatus);
+// queue routes
+router.post('/register', registerQueue);
+router.get('/status', getQueueStatus);
+router.put('/update-status', updateQueueStatus);
 
 module.exports = router;

@@ -176,8 +176,8 @@ async function processIdCardInput(userId, idCard, replyToken) {
 
   try {
     await queryDB2(
-      'INSERT INTO line_registered_users (line_user_id, id_card, full_name, registered_at) VALUES (?, ?, ?, NOW())',
-      [userId, idCard, `${nameWithoutTitle} ${lastName}`]
+      'INSERT INTO line_registered_users (line_user_id, id_card, full_name, hn, registered_at) VALUES (?, ?, ?, ?, NOW())',
+      [userId, idCard, `${nameWithoutTitle} ${lastName}`, userInfo.HN]
     );
 
     await redisClient.del(`session:${userId}`);
