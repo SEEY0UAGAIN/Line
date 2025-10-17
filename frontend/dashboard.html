@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy Queue Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .header .time {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-card .label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stat-card.waiting { border-left: 5px solid #fbbf24; }
+        .stat-card.waiting .number { color: #fbbf24; }
+
+        .stat-card.ready { border-left: 5px solid #10b981; }
+        .stat-card.ready .number { color: #10b981; }
+
+        .stat-card.called { border-left: 5px solid #3b82f6; }
+        .stat-card.called .number { color: #3b82f6; }
+
+        .stat-card.completed { border-left: 5px solid #8b5cf6; }
+        .stat-card.completed .number { color: #8b5cf6; }
+
+        .queue-list {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .queue-list h2 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .status-waiting { background: #fef3c7; color: #92400e; }
+        .status-ready { background: #d1fae5; color: #065f46; }
+        .status-called { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #ede9fe; color: #5b21b6; }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+
+        .refresh-btn:hover {
+            background: #5a67d8;
+        }
+
+        .auto-refresh {
+            color: #666;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            table {
+                font-size: 14px;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Pharmacy Queue Dashboard</h1>
+            <div class="time" id="currentTime"></div>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card waiting">
+                <div class="label">รอจัดยา</div>
+                <div class="number" id="stat-waiting">-</div>
+            </div>
+            <div class="stat-card ready">
+                <div class="label">ยาพร้อม</div>
+                <div class="number" id="stat-ready">-</div>
+            </div>
+            <div class="stat-card called">
+                <div class="label">กำลังเรียก</div>
+                <div class="number" id="stat-called">-</div>
+            </div>
+            <div class="stat-card completed">
+                <div class="label">เสร็จสิ้น</div>
+                <div class="number" id="stat-completed">-</div>
+            </div>
+        </div>
+
+        <div class="queue-list">
+            <h2>รายการคิววันนี้ 
+                <button class="refresh-btn" onclick="loadData()">🔄 Refresh</button>
+                <span class="auto-refresh">อัพเดทอัตโนมัติทุก 30 วินาที</span>
+            </h2>
+            <div id="queueTable"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        // อัพเดทเวลา
+        function updateTime() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: false 
+            };
+            document.getElementById('currentTime').textContent = 
+                now.toLocaleDateString('th-TH', options);
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // โหลดข้อมูลสถิติ
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/api/pharmacy-queue/stats`);
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('stat-waiting').textContent = 
+                        data.stats.waiting_medicine || 0;
+                    document.getElementById('stat-ready').textContent = 
+                        data.stats.medicine_ready || 0;
+                    document.getElementById('stat-called').textContent = 
+                        data.stats.called || 0;
+                    document.getElementById('stat-completed').textContent = 
+                        data.stats.completed || 0;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // โหลดรายการคิว
+        async function loadQueueList() {
+            const tableDiv = document.getElementById('queueTable');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/pharmacy-queue/status`);
+                const data = await response.json();
+
+                if (data.success && data.queues.length > 0) {
+                    const statusMap = {
+                        'waiting_medicine': { label: 'รอจัดยา', class: 'waiting' },
+                        'medicine_ready': { label: 'ยาพร้อม', class: 'ready' },
+                        'called': { label: 'กำลังเรียก', class: 'called' },
+                        'completed': { label: 'เสร็จสิ้น', class: 'completed' }
+                    };
+
+                    let html = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>VN</th>
+                                    <th>ชื่อ-นามสกุล</th>
+                                    <th>สถานะ</th>
+                                    <th>เวลาสร้าง</th>
+                                    <th>อัพเดทล่าสุด</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    data.queues.forEach(queue => {
+                        const statusInfo = statusMap[queue.status] || { label: queue.status, class: '' };
+                        const createdTime = new Date(queue.created_at).toLocaleTimeString('th-TH');
+                        const updatedTime = new Date(queue.updated_at).toLocaleTimeString('th-TH');
+
+                        html += `
+                            <tr>
+                                <td><strong>${queue.vn}</strong></td>
+                                <td>${queue.full_name || '-'}</td>
+                                <td>
+                                    <span class="status-badge status-${statusInfo.class}">
+                                        ${statusInfo.label}
+                                    </span>
+                                </td>
+                                <td>${createdTime}</td>
+                                <td>${updatedTime}</td>
+                            </tr>
+                        `;
+                    });
+
+                    html += '</tbody></table>';
+                    tableDiv.innerHTML = html;
+                } else {
+                    tableDiv.innerHTML = '<div class="loading">ไม่มีข้อมูลคิววันนี้</div>';
+                }
+            } catch (error) {
+                console.error('Error loading queue list:', error);
+                tableDiv.innerHTML = '<div class="error">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>';
+            }
+        }
+
+        // โหลดข้อมูลทั้งหมด
+        async function loadData() {
+            await Promise.all([loadStats(), loadQueueList()]);
+        }
+
+        // เริ่มต้น
+        loadData();
+
+        // Auto refresh ทุก 30 วินาที
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

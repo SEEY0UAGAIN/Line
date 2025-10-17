@@ -56,4 +56,22 @@ async function queryDB2(queryText, params = []) {
     }
 }
 
-module.exports = { queryDB1, queryDB2 };
+// ----- DB2: MySQL -----
+const db3Config = {
+    host: process.env.DB3_HOST, 
+    user: process.env.DB3_USER,
+    password: process.env.DB3_PASS,
+    database: process.env.DB3_NAME
+};
+
+async function queryDB3(queryText, params = []) {
+    const conn = await mysql.createConnection(db3Config);
+    try {
+        const [rows] = await conn.execute(queryText, params);
+        return rows;
+    } finally {
+        await conn.end();
+    }
+}
+
+module.exports = { queryDB1, queryDB2, queryDB3 };

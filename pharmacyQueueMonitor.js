@@ -1,7 +1,7 @@
 const sqlServer = require('mssql');
 const { queryDB1, queryDB2 } = require('./db');
 const { sendLineMessage } = require('./utils/lineNotify');
-const { logEvent } = require('./utils/auditLog');
+const { logEvent } = require('./auditLog');
 require('dotenv').config();
 
 // ตรวจสอบสถานะคิวยาทุก 30 วินาที

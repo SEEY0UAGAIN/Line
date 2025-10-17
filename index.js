@@ -180,6 +180,10 @@ app.post('/liff-register', async (req, res) => {
   }
 });
 
+app.get('/dashboard', (req, res) => {
+  res.sendFile(__dirname + '/frontend/dashboard.html');
+});
+
 // API สำหรับตรวจสอบสิทธิ์จากภายนอก (ต้องมี Token)
 app.post('/api/check-rights', async (req, res) => {
   try {
@@ -251,6 +255,71 @@ app.post('/api/call-pharmacy-queue', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('API call-pharmacy-queue error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+
+// API ดูสถานะคิวทั้งหมด (สำหรับ Admin)
+app.get('/api/pharmacy-queue/status', async (req, res) => {
+  try {
+    const queues = await queryDB2(
+      `SELECT 
+        pq.*,
+        lr.full_name,
+        lr.id_card
+      FROM pharmacy_queue_tracking pq
+      LEFT JOIN line_registered_users lr ON pq.line_user_id = lr.line_user_id
+      WHERE DATE(pq.created_at) = CURDATE()
+      ORDER BY pq.created_at DESC`
+    );
+
+    res.json({ 
+      success: true, 
+      count: queues.length,
+      queues 
+    });
+  } catch (error) {
+    console.error('API pharmacy-queue status error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+
+// API ดูสถิติคิววันนี้
+app.get('/api/pharmacy-queue/stats', async (req, res) => {
+  try {
+    const stats = await queryDB2(
+      `SELECT 
+        status,
+        COUNT(*) as count
+      FROM pharmacy_queue_tracking
+      WHERE DATE(created_at) = CURDATE()
+      GROUP BY status`
+    );
+
+    const result = {
+      waiting_medicine: 0,
+      medicine_ready: 0,
+      called: 0,
+      completed: 0
+    };
+
+    stats.forEach(s => {
+      result[s.status] = s.count;
+    });
+
+    res.json({ 
+      success: true, 
+      stats: result,
+      total: stats.reduce((sum, s) => sum + s.count, 0)
+    });
+  } catch (error) {
+    console.error('API pharmacy-queue stats error:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Internal server error' 
