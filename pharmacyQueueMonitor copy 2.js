@@ -4,7 +4,7 @@ const { sendLineMessage } = require('./utils/lineNotify');
 const { logEvent } = require('./auditLog');
 require('dotenv').config();
 
-const POLL_INTERVAL = process.env.POLL_INTERVAL || 15000; // 15 วินาที
+const POLL_INTERVAL = process.env.POLL_INTERVAL || 15000; // 30 วินาที
 
 /**
  * ✅ แก้ไข: ดึงข้อมูลคิวยาจาก SSB ให้ตรงกับหน้า "รอจัดยา" (drug.txt)
@@ -192,83 +192,14 @@ async function fetchCalledQueueFromSSB() {
 }
 
 /**
- * ✅ เพิ่มฟังก์ชัน: ดึง HN และ ID Card จาก VN ผ่าน SSB
- */
-async function getHNAndIdCardByVN(vn) {
-  try {
-    // ✅ เพิ่มเงื่อนไข VisitDate = วันนี้ เพื่อป้องกันดึง VN ซ้ำจากวันก่อน
-    const sql = `
-      SELECT TOP 1 
-        OM.HN,
-        N.ID as IdCard,
-        OM.VN,
-        OM.VisitDate
-      FROM HNOPD_MASTER OM WITH (NOLOCK)
-      LEFT JOIN HNName N ON OM.HN = N.HN
-      WHERE OM.VN = @vn 
-        AND CONVERT(DATE, OM.VisitDate) = CONVERT(DATE, GETDATE())
-        AND N.ID IS NOT NULL
-      ORDER BY OM.VisitDate DESC
-    `;
-    
-    const result = await queryDB1(sql, {
-      vn: { type: sqlServer.VarChar, value: vn }
-    });
-
-    if (result.length > 0) {
-      const idCard = result[0].IdCard;
-      console.log(`🔍 [getHNAndIdCardByVN] VN: ${vn} -> HN: ${result[0].HN}, ID: ${idCard || 'N/A'}, VisitDate: ${result[0].VisitDate}`);
-      
-      // ตรวจสอบว่า ID Card ไม่ใช่ค่าว่างหรือ invalid
-      if (idCard && idCard.length >= 13) {
-        return {
-          hn: result[0].HN,
-          idCard: idCard
-        };
-      }
-      
-      // ถ้า ID Card ไม่ valid ให้คืน HN อย่างเดียว
-      return {
-        hn: result[0].HN,
-        idCard: null
-      };
-    }
-    
-    console.log(`❌ [getHNAndIdCardByVN] ไม่พบข้อมูลสำหรับ VN: ${vn}`);
-    return null;
-  } catch (error) {
-    console.error(`Error getting HN/ID from VN ${vn}:`, error);
-    return null;
-  }
-}
-/**
- * ✅ แก้ไข: ดึง LINE User ID โดยรองรับหลาย format HN และ fallback ไป ID Card
+ * ดึงข้อมูล LINE User ID จาก VN
  */
 async function getLineUserIdByVN(vn, hn) {
   try {
-    console.log(`🔍 [getLineUserIdByVN] VN: ${vn}, HN: ${hn || 'ไม่ระบุ'}`);
-    
-    let hnData = null;
-    
-    // ✅ ถ้าไม่มี HN ให้ดึงจาก SSB
-    if (!hn) {
-      console.log(`🔍 ดึง HN และ ID Card จาก SSB...`);
-      hnData = await getHNAndIdCardByVN(vn);
-      
-      if (hnData) {
-        hn = hnData.hn;
-        console.log(`✅ ได้ HN: ${hn}, ID Card: ${hnData.idCard || 'N/A'}`);
-      } else {
-        console.log(`❌ ไม่พบข้อมูลใน SSB สำหรับ VN: ${vn}`);
-        return null;
-      }
-    }
-    
-    // ✅ ลองหา LINE User ID จาก HN (รองรับทั้งมี - และไม่มี -)
+    // ลองหา LINE User ID จาก HN ก่อน
     if (hn) {
-      // ลองหาแบบตรงๆก่อน
-      let result = await queryDB2(
-        `SELECT line_user_id, id_card, hn 
+      const result = await queryDB2(
+        `SELECT line_user_id, id_card 
          FROM line_registered_users 
          WHERE hn = ? 
          LIMIT 1`,
@@ -276,79 +207,36 @@ async function getLineUserIdByVN(vn, hn) {
       );
 
       if (result.length > 0) {
-        console.log(`✅ พบ LINE User ID จาก HN (ตรงทุกตัว): ${result[0].line_user_id}`);
         return result[0].line_user_id;
       }
-
-      // ✅ ลองหาแบบเอา - ออก (กรณี DB เก็บ 55-003514 แต่ได้มา 55003514)
-      const hnWithoutDash = hn.replace(/-/g, '');
-      result = await queryDB2(
-        `SELECT line_user_id, id_card, hn 
-         FROM line_registered_users 
-         WHERE REPLACE(hn, '-', '') = ? 
-         LIMIT 1`,
-        [hnWithoutDash]
-      );
-
-      if (result.length > 0) {
-        console.log(`✅ พบ LINE User ID จาก HN (เอา - ออก): ${result[0].line_user_id}`);
-        return result[0].line_user_id;
-      }
-
-      console.log(`⚠️  ไม่พบ LINE User ID จาก HN: ${hn}, ลองใช้ ID Card...`);
     }
 
-    // ✅ ลองหาจาก ID Card
-    if (hnData && hnData.idCard) {
+    // ถ้าไม่เจอ ลองหาจาก ID Card ใน SSB
+    const ssbQuery = `
+      SELECT N.ID 
+      FROM HNOPD_MASTER OM
+      LEFT JOIN HNName N ON OM.HN = N.HN
+      WHERE OM.VN = @vn
+    `;
+    const ssbRows = await queryDB1(ssbQuery, {
+      vn: { type: sqlServer.VarChar, value: vn }
+    });
+
+    if (ssbRows.length > 0) {
+      const idCard = ssbRows[0].ID;
       const lineUserResult = await queryDB2(
         'SELECT line_user_id FROM line_registered_users WHERE id_card = ? LIMIT 1',
-        [hnData.idCard]
+        [idCard]
       );
       
       if (lineUserResult.length > 0) {
-        console.log(`✅ พบ LINE User ID จาก ID Card: ${lineUserResult[0].line_user_id}`);
         return lineUserResult[0].line_user_id;
-      }
-    } else if (!hnData) {
-      // ถ้ายังไม่มี hnData ให้ดึงจาก SSB อีกครั้ง
-      console.log(`🔍 ลองดึง ID Card จาก SSB อีกครั้ง...`);
-      const ssbData = await getHNAndIdCardByVN(vn);
-      
-      if (ssbData && ssbData.idCard) {
-        const lineUserResult = await queryDB2(
-          'SELECT line_user_id FROM line_registered_users WHERE id_card = ? LIMIT 1',
-          [ssbData.idCard]
-        );
-        
-        if (lineUserResult.length > 0) {
-          console.log(`✅ พบ LINE User ID จาก ID Card: ${lineUserResult[0].line_user_id}`);
-          return lineUserResult[0].line_user_id;
-        }
       }
     }
 
-    console.log(`❌ ไม่พบ LINE User ID สำหรับ VN: ${vn}`);
-    
-    // ✅ Debug: แสดง HN ที่ใกล้เคียง (เฉพาะตอน dev)
-    if (hn && process.env.NODE_ENV !== 'production') {
-      try {
-        const debugCheck = await queryDB2(
-          `SELECT hn, id_card FROM line_registered_users 
-           WHERE hn LIKE ? OR REPLACE(hn, '-', '') LIKE ? 
-           LIMIT 5`,
-          [`%${hn.slice(-4)}%`, `%${hn.replace(/-/g, '').slice(-4)}%`]
-        );
-        if (debugCheck.length > 0) {
-          console.log(`🔍 Debug - HN ที่ใกล้เคียง:`, debugCheck.map(r => r.hn));
-        }
-      } catch (e) {
-        // Silent fail
-      }
-    }
-    
     return null;
   } catch (error) {
-    console.error(`❌ Error getting LINE User ID for VN ${vn}:`, error);
+    console.error(`Error getting LINE User ID for VN ${vn}:`, error);
     return null;
   }
 }
@@ -509,7 +397,7 @@ async function processQueueStatus(waitingQueue, readyQueue) {
 }
 
 /**
- * ✅ ดึงข้อมูลจาก paymentq ใน DB3 (ไม่มี HN - ต้องไปหาจาก SSB)
+ * ดึงข้อมูลจาก paymentq ใน DB3
  */
 async function fetchPaymentQueueFromDB3() {
   try {
@@ -530,7 +418,7 @@ async function fetchPaymentQueueFromDB3() {
 }
 
 /**
- * ✅ แก้ไข: ประมวลผล paymentq (ไม่บันทึก tracking ถ้าไม่เจอ LINE User)
+ * ประมวลผล paymentq rows และส่งแจ้งเตือน LINE (เพิ่ม Debug Logging)
  */
 async function processPaymentQueueRows(rows) {
   console.log(`🔍 เริ่มประมวลผล Payment Queue: ${rows.length} รายการ`);
@@ -538,9 +426,10 @@ async function processPaymentQueueRows(rows) {
   for (const row of rows) {
     try {
       const vn = row.vn;
+      let hn = row.hn; // 👈 ดึง HN จาก paymentq
       const paymentSlot = row.payment_slot ? String(row.payment_slot) : '-';
       
-      console.log(`\n--- Processing VN: ${vn}, Payment Slot: ${paymentSlot} ---`);
+      console.log(`\n--- Processing VN: ${vn}, HN: ${hn} ---`);
       
       // ✅ ตรวจสอบ VN
       if (!vn) {
@@ -548,24 +437,40 @@ async function processPaymentQueueRows(rows) {
         continue;
       }
 
-      // ✅ ตรวจสอบว่าเคยส่งสำเร็จแล้วหรือยัง
+      if (!hn) {
+        try {
+          const hnResult = await queryDB1(
+            'SELECT TOP 1 HN FROM HNOPD_MASTER WITH (NOLOCK) WHERE VN = @vn',
+            { vn: { type: sqlServer.VarChar, value: vn } }
+          );
+          if (hnResult.length > 0 && hnResult[0].HN) {
+            hn = hnResult[0].HN;
+            console.log(`🔁 ดึง HN จาก SSB สำเร็จ: VN ${vn} → HN ${hn}`);
+          } else {
+            console.log(`⚠️ ไม่พบ HN ใน SSB สำหรับ VN: ${vn}`);
+          }
+        } catch (e) {
+          console.warn(`⚠️ Error fetching HN from SSB (VN: ${vn}):`, e.message);
+        }
+      }
+
+      // ✅ ตรวจสอบว่าเคยส่งไปแล้วหรือยัง
       const tracking = await queryDB2(
-        'SELECT * FROM payment_queue_tracking WHERE vn = ? AND payment_slot = ? AND notified_payment = 1',
+        'SELECT * FROM payment_queue_tracking WHERE vn = ? AND payment_slot = ?',
         [vn, paymentSlot]
       );
 
       if (tracking.length > 0) {
-        console.log(`⏭️  ข้าม VN ${vn}: ส่งแจ้งเตือนสำเร็จแล้ว (Slot: ${paymentSlot})`);
+        console.log(`⏭️  ข้าม VN ${vn}: เคยส่งแจ้งเตือนไปแล้ว (Slot: ${paymentSlot})`);
         continue;
       }
 
-      // ✅ ดึง LINE User ID (ฟังก์ชันจะไปดึง HN จาก SSB เอง)
-      console.log(`🔍 กำลังค้นหา LINE User ID สำหรับ VN: ${vn}`);
-      const lineUserId = await getLineUserIdByVN(vn, null);
+      // ✅ ดึง LINE User ID (ส่ง HN เข้าไปด้วย!)
+      console.log(`🔍 กำลังค้นหา LINE User ID สำหรับ VN: ${vn}, HN: ${hn}`);
+      const lineUserId = await getLineUserIdByVN(vn, hn); // 👈 ส่ง HN เข้าไป!
       
       if (!lineUserId) {
-        console.log(`❌ ไม่พบ LINE User ID สำหรับ VN: ${vn} - จะลองใหม่รอบถัดไป`);
-        // ✅ ไม่บันทึก tracking เพื่อให้ลองใหม่ในรอบถัดไป
+        console.log(`❌ ไม่พบ LINE User ID สำหรับ VN: ${vn}`);
         continue;
       }
       
@@ -583,7 +488,7 @@ async function processPaymentQueueRows(rows) {
       await sendLineMessage(lineUserId, message);
       console.log(`✅ ส่งข้อความสำเร็จ`);
 
-      // ✅ บันทึกสถานะแจ้งแล้วใน DB2 (เฉพาะตอนส่งสำเร็จเท่านั้น)
+      // ✅ บันทึกสถานะแจ้งแล้วใน DB2
       await queryDB2(
         `INSERT INTO payment_queue_tracking (vn, line_user_id, payment_slot, notified_payment)
          VALUES (?, ?, ?, 1)`,
@@ -605,7 +510,6 @@ async function processPaymentQueueRows(rows) {
         stack: err.stack,
         row: row
       });
-      // ✅ ไม่บันทึก tracking เมื่อ error เพื่อให้ลองใหม่ในรอบถัดไป
     }
   }
   
@@ -674,24 +578,19 @@ async function markQueueAsCalled(vn) {
 }
 
 /**
- * ✅ Main monitoring loop - แก้ไขให้ดึงทั้ง 3 คิว + Retry Logic
+ * ✅ Main monitoring loop - แก้ไขให้ดึงทั้ง 3 คิว
  */
 async function startMonitoring() {
   console.log('🚀 Pharmacy Queue Monitor started (ปรับให้ตรงกับหน้าจอ PHP)');
 
-  // ทดลองเชื่อมต่อ DB3 แต่ไม่ให้ crash
   try {
     await queryDB3();
-    console.log('✅ DB3 Connected');
   } catch (e) {
-    console.warn('⚠️  DB3 connection failed initially, will retry on each loop');
+    console.warn('⚠️  Proceeding without DB3 initially', e.message);
   }
 
   // ทำความสะอาดข้อมูลเก่าทุกวัน
   setInterval(cleanupOldRecords, 24 * 60 * 60 * 1000);
-
-  let errorCount = 0;
-  const MAX_CONSECUTIVE_ERRORS = 5;
 
   // เริ่มตรวจสอบคิว
   while (true) {
@@ -699,35 +598,17 @@ async function startMonitoring() {
       console.log('\n🔍 กำลังตรวจสอบคิวทั้งหมด...');
       
       // 1. ดึงคิว "รอจัดยา" (DrugReady=0)
-      let waitingQueue = [];
-      try {
-        console.log('📋 [1/3] ตรวจสอบคิว "รอจัดยา"...');
-        waitingQueue = await fetchPharmacyQueueFromSSB();
-        errorCount = 0; // Reset error count on success
-      } catch (err) {
-        console.error('❌ Error fetching waiting queue:', err.message);
-        errorCount++;
-      }
+      console.log('📋 [1/3] ตรวจสอบคิว "รอจัดยา"...');
+      const waitingQueue = await fetchPharmacyQueueFromSSB();
       
       // 2. ดึงคิว "รอเรียก" (DrugReady=1 หรือ NODRUG)
-      let readyQueue = [];
-      try {
-        console.log('📋 [2/3] ตรวจสอบคิว "รอเรียก"...');
-        readyQueue = await fetchReadyQueueFromSSB();
-        errorCount = 0; // Reset error count on success
-      } catch (err) {
-        console.error('❌ Error fetching ready queue:', err.message);
-        errorCount++;
-      }
+      console.log('📋 [2/3] ตรวจสอบคิว "รอเรียก"...');
+      const readyQueue = await fetchReadyQueueFromSSB();
       
       // 3. ประมวลผลและส่งการแจ้งเตือน
       if (waitingQueue.length > 0 || readyQueue.length > 0) {
-        try {
-          console.log('📤 กำลังส่งการแจ้งเตือน...');
-          await processQueueStatus(waitingQueue, readyQueue);
-        } catch (err) {
-          console.error('❌ Error processing queue status:', err.message);
-        }
+        console.log('📤 กำลังส่งการแจ้งเตือน...');
+        await processQueueStatus(waitingQueue, readyQueue);
       } else {
         console.log('✅ ไม่มีคิวที่ต้องประมวลผล');
       }
@@ -743,38 +624,17 @@ async function startMonitoring() {
           console.log('✅ ไม่มีคิวชำระเงิน');
         }
       } catch (e) {
-        console.error('❌ Error checking payment queue (DB3):', e.message);
-        // ไม่นับเป็น critical error เพราะ DB3 อาจไม่พร้อม
-      }
-
-      // Reset error count if we got here
-      if (errorCount > 0) {
-        errorCount = Math.max(0, errorCount - 1);
+        console.error('❌ Error checking payment queue (DB3):', e);
       }
 
     } catch (error) {
       console.error('❌ Error in monitoring loop:', error);
-      errorCount++;
-      
-      try {
-        await logEvent('pharmacy.monitor.error', { error: error.message });
-      } catch (e) {
-        // Silent fail on logging
-      }
-      
-      // ถ้า error ติดต่อกันหลายครั้ง ให้รอนานขึ้น
-      if (errorCount >= MAX_CONSECUTIVE_ERRORS) {
-        console.error(`⚠️  มี error ติดต่อกัน ${errorCount} ครั้ง - รอ 60 วินาที...`);
-        await new Promise(resolve => setTimeout(resolve, 60000));
-        errorCount = 0; // Reset
-        continue;
-      }
+      await logEvent('pharmacy.monitor.error', { error: error.message });
     }
 
     // รอ POLL_INTERVAL
-    const waitTime = errorCount > 0 ? POLL_INTERVAL * 2 : POLL_INTERVAL;
-    console.log(`⏰ รอ ${waitTime/1000} วินาที...\n`);
-    await new Promise(resolve => setTimeout(resolve, waitTime));
+    console.log(`⏰ รอ ${POLL_INTERVAL/1000} วินาที...\n`);
+    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
   }
 }
 
@@ -793,7 +653,5 @@ module.exports = {
   fetchCalledQueueFromSSB,
   markQueueAsCalled, 
   fetchPaymentQueueFromDB3, 
-  processPaymentQueueRows,
-  getHNAndIdCardByVN,
-  getLineUserIdByVN
+  processPaymentQueueRows 
 };

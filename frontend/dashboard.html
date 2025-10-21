@@ -261,52 +261,61 @@
                 const response = await fetch(`${API_BASE}/api/pharmacy-queue/status`);
                 const data = await response.json();
 
-                if (data.success && data.queues.length > 0) {
-                    const statusMap = {
-                        'waiting_medicine': { label: 'รอจัดยา', class: 'waiting' },
-                        'medicine_ready': { label: 'ยาพร้อม', class: 'ready' },
-                        'called': { label: 'กำลังเรียก', class: 'called' },
-                        'completed': { label: 'เสร็จสิ้น', class: 'completed' }
-                    };
+                if (data.success) {
+                const statusMap = {
+                    'waiting_medicine': { label: 'รอจัดยา', class: 'waiting' },
+                    'medicine_ready': { label: 'ยาพร้อม', class: 'ready' },
+                    'called': { label: 'กำลังเรียก', class: 'called' },
+                    'completed': { label: 'เสร็จสิ้น', class: 'completed' }
+                };
 
-                    let html = `
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>VN</th>
-                                    <th>ชื่อ-นามสกุล</th>
-                                    <th>สถานะ</th>
-                                    <th>เวลาสร้าง</th>
-                                    <th>อัพเดทล่าสุด</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>สถานะ</th>
+                                <th>VN</th>
+                                <th>ชื่อ-นามสกุล</th>
+                                <th>เวลาสร้าง</th>
+                                <th>อัพเดทล่าสุด</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                // แสดงทุกสถานะ แม้ไม่มีข้อมูล
+                for (const key in statusMap) {
+                    const rows = data.queues.filter(q => q.status === key);
+
+                    if (rows.length === 0) {
+                    html += `
+                        <tr>
+                        <td><span class="status-badge status-${statusMap[key].class}">${statusMap[key].label}</span></td>
+                        <td colspan="4" style="text-align:center; color:#666;">ไม่มีข้อมูล</td>
+                        </tr>
                     `;
-
-                    data.queues.forEach(queue => {
-                        const statusInfo = statusMap[queue.status] || { label: queue.status, class: '' };
+                    } else {
+                    rows.forEach(queue => {
                         const createdTime = new Date(queue.created_at).toLocaleTimeString('th-TH');
                         const updatedTime = new Date(queue.updated_at).toLocaleTimeString('th-TH');
-
                         html += `
-                            <tr>
-                                <td><strong>${queue.vn}</strong></td>
-                                <td>${queue.full_name || '-'}</td>
-                                <td>
-                                    <span class="status-badge status-${statusInfo.class}">
-                                        ${statusInfo.label}
-                                    </span>
-                                </td>
-                                <td>${createdTime}</td>
-                                <td>${updatedTime}</td>
-                            </tr>
+                        <tr>
+                            <td><span class="status-badge status-${statusMap[key].class}">${statusMap[key].label}</span></td>
+                            <td><strong>${queue.vn}</strong></td>
+                            <td>${queue.full_name || '-'}</td>
+                            <td>${createdTime}</td>
+                            <td>${updatedTime}</td>
+                        </tr>
                         `;
                     });
+                    }
+                }
 
-                    html += '</tbody></table>';
-                    tableDiv.innerHTML = html;
+                html += '</tbody></table>';
+                tableDiv.innerHTML = html;
+
                 } else {
-                    tableDiv.innerHTML = '<div class="loading">ไม่มีข้อมูลคิววันนี้</div>';
+                tableDiv.innerHTML = '<div class="error">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>';
                 }
             } catch (error) {
                 console.error('Error loading queue list:', error);
