@@ -10,7 +10,7 @@ const {
 const redisClient = require('./redisClient');
 const { handlePostback } = require('./handlers/postbackHandler');
 const queueRouter = require('./routes');
-const { queryDB2 } = require('./db');
+const { queryDB1, queryDB2, queryDB3 } = require('./db');
 require('dotenv').config();
 
 const app = express();
@@ -71,6 +71,97 @@ app.get('/api/pharmacy-queue/status', async (req, res) => {
       success: false, 
       message: 'Internal server error',
       error: error.message
+    });
+  }
+});
+
+// API ดูสถานะคิวทั้งหมด (รวมคนที่ไม่มี LINE)
+app.get('/api/pharmacy-queue/all-status', async (req, res) => {
+  console.log('📊 API /api/pharmacy-queue/all-status called');
+  try {
+    // ดึงข้อมูลทั้งหมดจาก SSB
+    console.log('🔍 Querying SSB database...');
+    const queues = await queryDB1(
+      `SELECT DISTINCT 
+        HNOPD_MASTER.VN,
+        HNOPD_MASTER.HN,
+        ISNULL(HNOPD_PRESCRIP.DrugAcknowledge, 0) as DrugAcknowledge,
+        ISNULL(HNOPD_PRESCRIP.DrugReady, 0) as DrugReady,
+        HNOPD_MASTER.OutDateTime,
+        HNOPD_MASTER.VisitDate as VisitDateTime,
+        SUBSTRING(ISNULL(dbo.HNPAT_NAME.FirstName, ''), 2, 100) + ' ' + 
+        SUBSTRING(ISNULL(dbo.HNPAT_NAME.LastName, ''), 2, 100) AS PatientName,
+        HNOPD_PRESCRIP.Clinic,
+        (SELECT ISNULL(SUBSTRING(LocalName, 2, 1000), SUBSTRING(EnglishName, 2, 1000))
+         FROM DNSYSCONFIG 
+         WHERE CtrlCode = '42203' AND code = HNOPD_PRESCRIP.Clinic) AS ClinicName,
+        HNOPD_RECEIVE_HEADER.ReceiptNo,
+        HNOPD_PRESCRIP_MEDICINE.StockCode
+      FROM HNOPD_MASTER WITH (NOLOCK)
+      LEFT OUTER JOIN HNOPD_PRESCRIP 
+        ON HNOPD_MASTER.VisitDate=HNOPD_PRESCRIP.VisitDate 
+        AND HNOPD_MASTER.VN=HNOPD_PRESCRIP.VN
+      LEFT OUTER JOIN HNOPD_RECEIVE_HEADER 
+        ON HNOPD_MASTER.VisitDate=HNOPD_RECEIVE_HEADER.VisitDate 
+        AND HNOPD_MASTER.VN=HNOPD_RECEIVE_HEADER.VN
+      LEFT OUTER JOIN HNOPD_PRESCRIP_MEDICINE 
+        ON HNOPD_PRESCRIP.VisitDate=HNOPD_PRESCRIP_MEDICINE.VisitDate 
+        AND HNOPD_PRESCRIP.VN=HNOPD_PRESCRIP_MEDICINE.VN 
+        AND HNOPD_PRESCRIP.PrescriptionNo=HNOPD_PRESCRIP_MEDICINE.PrescriptionNo
+      LEFT OUTER JOIN HNPAT_NAME 
+        ON HNOPD_MASTER.HN=HNPAT_NAME.HN
+      WHERE HNOPD_MASTER.Cxl=0
+        AND CONVERT(DATE, HNOPD_MASTER.VisitDate) = CONVERT(DATE, GETDATE())
+        AND HNPAT_NAME.SuffixSmall=0
+      ORDER BY HNOPD_MASTER.VN DESC`
+    );
+
+    console.log(`✅ Found ${queues.length} queues from SSB`);
+
+    // ดึง LINE User ID จาก DB2 และกำหนดสถานะ
+    const { getLineUserIdByVN } = require('./pharmacyQueueMonitor');
+    
+    console.log('🔍 Checking LINE User IDs and status...');
+    for (let i = 0; i < queues.length; i++) {
+      try {
+        const queue = queues[i];
+        
+        // เช็ค LINE User ID
+        const lineUserId = await getLineUserIdByVN(queue.VN, queue.HN);
+        queue.line_user_id = lineUserId;
+        
+        // กำหนดสถานะ "เสร็จสิ้น" (ชำระเงินแล้ว)
+        queue.is_completed = queue.ReceiptNo ? true : false;
+        
+        // กำหนดสถานะ "ไม่มียา" (NODRUG)
+        queue.is_no_drug = queue.StockCode === 'NODRUG' ? true : false;
+        
+        if (i % 10 === 0) {
+          console.log(`Progress: ${i}/${queues.length}`);
+        }
+      } catch (err) {
+        console.error(`Error checking LINE ID for VN ${queues[i].VN}:`, err.message);
+        queues[i].line_user_id = null;
+        queues[i].is_completed = false;
+        queues[i].is_no_drug = false;
+      }
+    }
+
+    console.log(`✅ LINE check complete`);
+    
+    res.json({ 
+      success: true, 
+      count: queues.length,
+      queues 
+    });
+  } catch (error) {
+    console.error('❌ API pharmacy-queue all-status error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -256,6 +347,8 @@ app.post('/liff-register', async (req, res) => {
 // ========================================
 app.use('/queue', queueRouter);
 
+const verifyRouter = require('./routes/verify');
+app.use('/api', verifyRouter);
 // ========================================
 // WEBHOOK
 // ========================================
@@ -295,8 +388,28 @@ app.post('/webhook', async (req, res) => {
           await startRegistration(userId, event.replyToken);
         } 
         else if (msg === 'ตรวจสอบสิทธิ์' || msg === 'ตรวจสอบสถานะ' || msg === 'check_status') {
-          await checkRegistrationStatus(userId, event.replyToken);
-        } 
+          const { handlePostback } = require('./handlers/postbackHandler');
+          await handlePostback({
+            source: { userId },
+            postback: { data: 'action=check_status' },
+            replyToken: event.replyToken
+          });
+        }
+        else if (msg === 'ตรวจสิทธิ์ล่วงหน้า' || msg === 'preverify') {
+          const { sendVerifyQR } = require('./handlers/verifyLineHandler');
+
+          // ดึงข้อมูลผู้ใช้จาก DB
+          const rows = await queryDB2('SELECT * FROM line_registered_users WHERE line_user_id = ?', [userId]);
+          if (rows.length === 0) {
+            await replyMessage(event.replyToken, [
+              { type: 'text', text: '❌ คุณยังไม่ได้ลงทะเบียน กรุณาลงทะเบียนก่อนใช้ฟังก์ชันนี้' }
+            ]);
+            return;
+          }
+
+          const patient = rows[0];
+          await sendVerifyQR(userId, event.replyToken, patient);
+        }
         else if (msg === 'ติดต่อเจ้าหน้าที่' || msg === 'contact') {
           await replyMessage(event.replyToken, [
             { 

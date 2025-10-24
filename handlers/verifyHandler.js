@@ -1,31 +1,30 @@
+const { createToken } = require('../jwtHelper');
 const redisClient = require('../redisClient');
-const { logEvent } = require('../utils/auditLog');
+const { logEvent } = require('../auditLog');
+const crypto = require('crypto');
 
-async function checkVerify(req, res) {
-    const token = req.query.token;
-    if (!token) return res.status(400).json({ error: 'Missing token' });
+async function issueVerifyToken(profile) {
+  const jti = crypto.randomUUID();
+  const payload = {
+    jti,
+    cid: profile.cid,
+    dob: profile.dob,
+    name: profile.name,
+    right_name: profile.right_name,
+    phone_mask: profile.phone_mask,
+    line_user_id: profile.line_user_id,
+    scope: 'preverify',
+  };
 
-    const key = `preverify:${token}`;
-    const data = await redisClient.get(key);
-    if (!data) {
-        logEvent('verify.failed', { token, reason: 'token not found' });
-        return res.status(404).json({ error: 'Token not found or expired' });
-    }
+  const token = createToken(payload, '24h');
 
-    const profile = JSON.parse(data);
+  await redisClient.setEx(`preverify:${jti}`, 86400, JSON.stringify({
+    ...payload,
+    used: false,
+  }));
 
-    if (profile.used) {
-        logEvent('verify.failed', { token, reason: 'token used' });
-        return res.status(409).json({ error: 'Token already used' });
-    }
-
-    // Mark token as used
-    profile.used = true;
-    await redisClient.set(key, JSON.stringify(profile), { EX: 300 }); // grace period 5 นาที
-
-    logEvent('verify.success', { token, cid: profile.cid });
-
-    res.json({ success: true, profile });
+  await logEvent('verify.issued', { jti, cid: profile.cid });
+  return { token, jti, exp: 86400 };
 }
 
-module.exports = { checkVerify };
+module.exports = { issueVerifyToken };

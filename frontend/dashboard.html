@@ -258,57 +258,53 @@
             const tableDiv = document.getElementById('queueTable');
             
             try {
-                const response = await fetch(`${API_BASE}/api/pharmacy-queue/status`);
+                const response = await fetch(`${API_BASE}/api/pharmacy-queue/all-status`);
                 const data = await response.json();
 
                 if (data.success) {
-                const statusMap = {
-                    'waiting_medicine': { label: 'รอจัดยา', class: 'waiting' },
-                    'medicine_ready': { label: 'ยาพร้อม', class: 'ready' },
-                    'called': { label: 'กำลังเรียก', class: 'called' },
-                    'completed': { label: 'เสร็จสิ้น', class: 'completed' }
-                };
-
                 let html = `
                     <table>
                         <thead>
                             <tr>
-                                <th>สถานะ</th>
                                 <th>VN</th>
+                                <th>HN</th>
                                 <th>ชื่อ-นามสกุล</th>
-                                <th>เวลาสร้าง</th>
-                                <th>อัพเดทล่าสุด</th>
+                                <th>คลินิก</th>
+                                <th>สถานะยา</th>
+                                <th>LINE ID</th>
+                                <th>เวลา</th>
                             </tr>
                         </thead>
                         <tbody>
                 `;
 
-                // แสดงทุกสถานะ แม้ไม่มีข้อมูล
-                for (const key in statusMap) {
-                    const rows = data.queues.filter(q => q.status === key);
-
-                    if (rows.length === 0) {
-                    html += `
-                        <tr>
-                        <td><span class="status-badge status-${statusMap[key].class}">${statusMap[key].label}</span></td>
-                        <td colspan="4" style="text-align:center; color:#666;">ไม่มีข้อมูล</td>
-                        </tr>
-                    `;
-                    } else {
-                    rows.forEach(queue => {
-                        const createdTime = new Date(queue.created_at).toLocaleTimeString('th-TH');
-                        const updatedTime = new Date(queue.updated_at).toLocaleTimeString('th-TH');
+                if (data.queues.length === 0) {
+                    html += '<tr><td colspan="7" style="text-align:center; color:#666;">ไม่มีข้อมูล</td></tr>';
+                } else {
+                    data.queues.forEach(queue => {
+                        const status = queue.DrugReady === 1 ? 'ยาพร้อม' : 
+                                     queue.DrugAcknowledge === 1 ? 'รอจัดยา' : '-';
+                        const statusClass = queue.DrugReady === 1 ? 'ready' : 
+                                          queue.DrugAcknowledge === 1 ? 'waiting' : '';
+                        
+                        const hasLine = queue.line_user_id ? '✅' : '❌';
+                        const lineColor = queue.line_user_id ? 'green' : 'red';
+                        
+                        const time = queue.OutDateTime ? 
+                            new Date(queue.OutDateTime).toLocaleTimeString('th-TH') : '-';
+                        
                         html += `
                         <tr>
-                            <td><span class="status-badge status-${statusMap[key].class}">${statusMap[key].label}</span></td>
-                            <td><strong>${queue.vn}</strong></td>
-                            <td>${queue.full_name || '-'}</td>
-                            <td>${createdTime}</td>
-                            <td>${updatedTime}</td>
+                            <td><strong>${queue.VN}</strong></td>
+                            <td>${queue.HN || '-'}</td>
+                            <td>${queue.PatientName || '-'}</td>
+                            <td>${queue.ClinicName || '-'}</td>
+                            <td><span class="status-badge status-${statusClass}">${status}</span></td>
+                            <td style="text-align:center; color:${lineColor}; font-size:18px;">${hasLine}</td>
+                            <td>${time}</td>
                         </tr>
                         `;
                     });
-                    }
                 }
 
                 html += '</tbody></table>';
@@ -322,7 +318,7 @@
                 tableDiv.innerHTML = '<div class="error">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>';
             }
         }
-
+        
         // โหลดข้อมูลทั้งหมด
         async function loadData() {
             await Promise.all([loadStats(), loadQueueList()]);

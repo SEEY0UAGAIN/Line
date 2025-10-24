@@ -5,7 +5,7 @@ require('dotenv').config();
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const TEST_USER_ID = process.env.TEST_USER_ID || 'Udc23cd2351bf610b189e17a73a3c722c'; // ใส่ userId ของคุณ
 const RICH_MENU_IMAGE_PATH = 'main_menu.jpg'; // ภาพเมนู
-const RICH_MENU_NAME = 'Main Menu';
+const RICH_MENU_NAME = 'Main Menu V2.1';
 
 const headers = { Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}` };
 
@@ -16,17 +16,23 @@ const richMenu = {
   name: RICH_MENU_NAME,
   chatBarText: 'Tap here',
   areas: [
+    // 🔹 ปุ่มบนสุด ตรวจสิทธิ์ล่วงหน้า
     {
-      bounds: { x: 0, y: 0, width: 400, height: 810 },
-      action: { type: 'message', label: 'Register', text: 'ลงทะเบียน' }
+      bounds: { x: 0, y: 0, width: 1200, height: 250 },
+      action: { type: 'message', label: 'ตรวจสิทธิ์ล่วงหน้า', text: 'ตรวจสิทธิ์ล่วงหน้า' }
+    },
+    // 🔹 แถวล่าง 3 ปุ่ม
+    {
+      bounds: { x: 0, y: 250, width: 400, height: 560 },
+      action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' }
     },
     {
-      bounds: { x: 400, y: 0, width: 400, height: 810 },
-      action: { type: 'message', label: 'Status', text: 'ตรวจสอบสถานะ' }
+      bounds: { x: 400, y: 250, width: 400, height: 560 },
+      action: { type: 'message', label: 'ตรวจสอบสิทธิ์', text: 'ตรวจสอบสิทธิ์' }
     },
     {
-      bounds: { x: 800, y: 0, width: 400, height: 810 },
-      action: { type: 'message', label: 'Contact', text: 'ติดต่อเจ้าหน้าที่' }
+      bounds: { x: 800, y: 250, width: 400, height: 560 },
+      action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' }
     }
   ]
 };

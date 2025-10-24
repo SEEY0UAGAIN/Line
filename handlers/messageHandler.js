@@ -3,6 +3,7 @@ const { queryDB1, queryDB2 } = require('../db');
 const redisClient = require('../redisClient');
 const { logEvent } = require('../auditLog');
 const { isValidIdCard } = require('../utils/validation');
+const { formatRightsMessage } = require('../utils/rightsMapper'); 
 const axios = require('axios');
 const { createToken } = require('../jwtHelper'); 
 require('dotenv').config();
@@ -43,16 +44,28 @@ async function pushMessage(lineUserId, messages) {
 // ตรวจสอบสิทธิ์ผู้ใช้งาน
 async function checkUserRights(idCard) {
   const sqlQuery = `
-    SELECT OM.DefaultRightCode
-    FROM HNOPD_MASTER OM
-    LEFT JOIN HNName N ON OM.HN = N.HN
-    WHERE N.ID = @id_card
+    SELECT 
+      R.RightCode,
+      R.CompanyCode,
+      R.ValidFrom,
+      R.ValidTill
+    FROM HNPAT_RIGHT R
+    INNER JOIN HNPAT_INFO I ON R.HN = I.HN
+    WHERE I.PrePatientNo = @id_card
+      AND R.ValidFrom IS NOT NULL
+      AND R.ValidTill IS NOT NULL
+      AND GETDATE() BETWEEN R.ValidFrom AND R.ValidTill
+    ORDER BY R.ValidFrom DESC;
   `;
-  const rows = await queryDB1(sqlQuery, { id_card: { type: sqlServer.VarChar, value: idCard } });
+
+  const rows = await queryDB1(sqlQuery, {
+    id_card: { type: sqlServer.VarChar, value: idCard }
+  });
+
   if (!rows.length) return [];
 
-  // ดึง DefaultRightCode ของผู้ใช้ทั้งหมด
-  const rights = rows.map(r => r.DefaultRightCode);
+  // ส่งเฉพาะรหัสสิทธิ์ที่ยัง Active อยู่
+  const rights = rows.map(r => r.RightCode);
   return rights;
 }
 
@@ -87,21 +100,13 @@ async function startRegistration(userId, replyToken) {
 
     const welcomeMessage = `✅ คุณได้ลงทะเบียนไว้แล้ว\nยินดีต้อนรับคุณ ${nameWithoutTitle} ${lastName}`;
 
-    // ตรวจสอบสิทธิ์ผู้ใช้
-    const userRights = await checkUserRights(idCard);
-    const rightsMessage = userRights.length > 0 
-      ? `🔑 สิทธิ์ของคุณ: ${userRights.join(', ')}` 
-      : '⚠️ คุณยังไม่มีสิทธิ์ใช้งาน';
-
     if (replyToken) {
       await replyMessage(replyToken, [
-        { type: 'text', text: welcomeMessage },
-        { type: 'text', text: rightsMessage }
+        { type: 'text', text: welcomeMessage }
       ]);
     } else {
       await pushMessage(userId, [
-        { type: 'text', text: welcomeMessage },
-        { type: 'text', text: rightsMessage }
+        { type: 'text', text: welcomeMessage }
       ]);
     }
     return;
@@ -202,9 +207,7 @@ async function processIdCardInput(userId, idCard, replyToken) {
 
     // แจ้งสิทธิ์ผู้ใช้
     const userRights = await checkUserRights(idCard);
-    const rightsMessage = userRights.length > 0 
-      ? `🔑 สิทธิ์ของคุณ: ${userRights.join(', ')}` 
-      : '⚠️ คุณยังไม่มีสิทธิ์ใช้งาน';
+    const rightsMessage = formatRightsMessage(userRights);
 
     await pushMessage(userId, [{ type: 'text', text: rightsMessage }]);
 

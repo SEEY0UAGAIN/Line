@@ -4,13 +4,14 @@ const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const fs = require('fs');
 
 const richMenuData = {
-  size: { width: 1200, height: 810 },
+  size: { width: 1600, height: 810 },
   selected: true,
   name: 'Main Menu',
   chatBarText: 'Tap here',
   areas: [
     { bounds: { x: 0, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
     { bounds: { x: 400, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ตรวจสอบสถานะ', text: 'ตรวจสอบสถานะ' } },
+    { bounds: { x: 400, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ตรวจสิทธิ์ล่วงหน้า', text: 'ตรวจสิทธิ์ล่วงหน้า' } },
     { bounds: { x: 800, y: 0, width: 400, height: 810 }, action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } }
   ]
 };
