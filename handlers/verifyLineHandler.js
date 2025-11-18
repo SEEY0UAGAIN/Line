@@ -28,7 +28,7 @@ async function sendVerifyQR(userId, replyToken, patientInfo) {
     const { token, jti } = await issueVerifyToken({
       cid: patientInfo.id_card,
       dob: patientInfo.birth_date,
-      name: `${patientInfo.first_name || ''} ${patientInfo.last_name || ''}`.trim(),
+      name: patientInfo.full_name || `${patientInfo.first_name || ''} ${patientInfo.last_name || ''}`.trim(),
       right_name: patientInfo.right_name || 'ยังไม่ตรวจสอบ',
       phone_mask: patientInfo.phone || '',
       line_user_id: userId

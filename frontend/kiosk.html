@@ -3,18 +3,150 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kiosk QR Scan</title>
+  <title>Kiosk QR Scan (Debug Mode)</title>
   <style>
-    body { font-family: Arial; text-align: center; margin: 20px; }
-    #qr-result { margin-top: 20px; font-size: 1.2em; }
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+      background-color: #f4f6ff;
+    }
+    #preview {
+      width: 420px;
+      height: 420px;
+      margin: auto;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      background: #000;
+    }
+    #qr-result {
+      margin-top: 20px;
+      font-size: 1.1em;
+      color: #333;
+      white-space: pre-wrap;
+    }
+    #debug-box {
+      margin-top: 20px;
+      width: 80%;
+      max-width: 700px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      padding: 10px;
+      text-align: left;
+      margin-left: auto;
+      margin-right: auto;
+      font-family: monospace;
+      font-size: 0.9em;
+      white-space: pre-wrap;
+      color: #333;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #4a6cf7;
+      color: white;
+      font-size: 1em;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #3650d4;
+    }
   </style>
 </head>
 <body>
   <h1>Kiosk - สแกน QR Code</h1>
-  <video id="preview" width="300" height="300"></video>
+
+  <div id="preview"></div>
   <div id="qr-result">รอการสแกน QR Code...</div>
 
+  <button id="restart-btn" style="display:none;">🔄 สแกนใหม่</button>
+
+  <!-- 🔍 Debug Panel -->
+  <div id="debug-box">[DEBUG] Waiting for scan...</div>
+
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <script src="kiosk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>
+
+  <script>
+    const resultElem = document.getElementById('qr-result');
+    const debugBox = document.getElementById('debug-box');
+    const restartBtn = document.getElementById('restart-btn');
+    let html5QrCode;
+
+    // 🔍 แสดงข้อความ debug
+    function debugLog(label, data) {
+      const time = new Date().toLocaleTimeString();
+      debugBox.innerText += `\n[${time}] ${label}: ${typeof data === 'object' ? JSON.stringify(data, null, 2) : data}`;
+    }
+
+    async function startScanner() {
+      resultElem.innerText = "📷 กำลังเปิดกล้อง...";
+      restartBtn.style.display = "none";
+      debugLog("Scanner", "Starting camera...");
+
+      html5QrCode = new Html5Qrcode("preview");
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 350 },
+        qrCodeMessage => {
+          debugLog("QR Detected", qrCodeMessage);
+          resultElem.innerText = `QR Code Detected!`;
+          html5QrCode.stop();
+          processQRCode(qrCodeMessage);
+        },
+        errorMessage => { /* ไม่ต้อง log ซ้ำ */ }
+      ).catch(err => {
+        debugLog("Camera error", err);
+        resultElem.innerText = "❌ ไม่สามารถเปิดกล้องได้: " + err;
+      });
+    }
+
+    async function processQRCode(token) {
+      debugLog("Process", "Decoding token...");
+      let decoded = null;
+
+      try {
+        decoded = jwt_decode(token);
+        debugLog("Decoded QR", decoded);
+      } catch (err) {
+        resultElem.innerText = "❌ ไม่สามารถถอดรหัส QR ได้";
+        debugLog("Decode Error", err.message);
+        restartBtn.style.display = "block";
+        return;
+      }
+
+      // 🧩 ดึงค่าทั้งหมดออกมา พร้อมเช็กว่ามีหรือไม่
+      const displayName = decoded.name && decoded.name.trim() !== "" ? decoded.name : "(ไม่มีชื่อใน QR Code)";
+      const displayCid = decoded.cid || "(ไม่มี cid)";
+      const displayRight = decoded.right_name || "(ไม่มีสิทธิ์ใน QR)";
+      const displayLineId = decoded.line_user_id ? "✅ " + decoded.line_user_id : "❌ ไม่มี line_user_id";
+      const displayDob = decoded.dob ? decoded.dob : "❌ ไม่มีวันเกิด";
+
+      resultElem.innerText = 
+        `✅ ถอดรหัสสำเร็จ!\n\n` +
+        `ชื่อผู้ป่วย: ${displayName}\n` +
+        `CID: ${displayCid}\n` +
+        `สิทธิ์: ${displayRight}\n` +
+        `Line ID: ${displayLineId}\n` +
+        `วันเกิด: ${displayDob}\n\n` +
+        `📦 ข้อมูลเต็มจาก Token:\n` +
+        JSON.stringify(decoded, null, 2);
+
+      debugLog("Info", "แสดงข้อมูลทั้งหมดสำเร็จ (ยังไม่ส่งเข้า API)");
+      restartBtn.style.display = "block";
+    }
+
+    restartBtn.addEventListener('click', () => {
+      debugLog("Action", "Restart scanner");
+      startScanner();
+    });
+
+    startScanner();
+  </script>
 </body>
 </html>
