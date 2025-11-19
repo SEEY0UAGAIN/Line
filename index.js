@@ -5,10 +5,7 @@ const {
   startRegistration, 
   replyMessage, 
   checkRegistrationStatus,
-  processIdCardInput,
-  handleCheckPharmacyQueue,      
-  handleCheckPaymentQueue,
-  handleCheckAllStatus        
+  processIdCardInput
 } = require('./handlers/messageHandler');
 const redisClient = require('./redisClient');
 const { handlePostback } = require('./handlers/postbackHandler');
@@ -346,178 +343,14 @@ app.post('/liff-register', async (req, res) => {
 });
 
 // ========================================
-// API สำหรับ Dashboard ผู้ใช้งาน
-// ========================================
-
-// API ดึงรายชื่อผู้ใช้ทั้งหมด
-app.get('/api/registered-users', async (req, res) => {
-  console.log('📋 API /api/registered-users called');
-  try {
-    const users = await queryDB2(
-      `SELECT 
-        line_user_id,
-        id_card,
-        full_name,
-        hn,
-        registered_at,
-        updated_at
-      FROM line_registered_users
-      ORDER BY registered_at DESC`
-    );
-
-    console.log(`✅ Found ${users.length} registered users`);
-    
-    res.json({ 
-      success: true, 
-      count: users.length,
-      users: users
-    });
-  } catch (error) {
-    console.error('❌ API registered-users error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-});
-
-// API ส่งข้อความ Push Message
-app.post('/api/send-push-message', async (req, res) => {
-  console.log('📤 API /api/send-push-message called');
-  try {
-    const { lineUserId, message } = req.body;
-
-    if (!lineUserId || !message) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Missing required parameters' 
-      });
-    }
-
-    const { pushMessage } = require('./handlers/messageHandler');
-    
-    await pushMessage(lineUserId, [
-      {
-        type: 'text',
-        text: message
-      }
-    ]);
-
-    console.log(`✅ Message sent to ${lineUserId}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Message sent successfully' 
-    });
-  } catch (error) {
-    console.error('❌ API send-push-message error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to send message',
-      error: error.message
-    });
-  }
-});
-
-// API ค้นหาผู้ใช้
-app.get('/api/search-users', async (req, res) => {
-  console.log('🔍 API /api/search-users called');
-  try {
-    const { query } = req.query;
-
-    if (!query) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Missing search query' 
-      });
-    }
-
-    const users = await queryDB2(
-      `SELECT 
-        line_user_id,
-        id_card,
-        full_name,
-        hn,
-        registered_at
-      FROM line_registered_users
-      WHERE full_name LIKE ? 
-         OR hn LIKE ? 
-         OR id_card LIKE ?
-      ORDER BY registered_at DESC
-      LIMIT 50`,
-      [`%${query}%`, `%${query}%`, `%${query}%`]
-    );
-
-    res.json({ 
-      success: true, 
-      count: users.length,
-      users: users
-    });
-  } catch (error) {
-    console.error('❌ API search-users error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-});
-
-// API ดูประวัติการส่งข้อความ (ถ้าต้องการเก็บ log)
-app.get('/api/message-history/:lineUserId', async (req, res) => {
-  console.log('📜 API /api/message-history called');
-  try {
-    const { lineUserId } = req.params;
-
-    // ตรวจสอบว่าผู้ใช้มีอยู่จริง
-    const users = await queryDB2(
-      'SELECT * FROM line_registered_users WHERE line_user_id = ?',
-      [lineUserId]
-    );
-
-    if (users.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User not found' 
-      });
-    }
-
-    // ถ้ามี table message_logs
-    // const messages = await queryDB2(
-    //   `SELECT * FROM message_logs 
-    //    WHERE line_user_id = ? 
-    //    ORDER BY created_at DESC 
-    //    LIMIT 50`,
-    //   [lineUserId]
-    // );
-
-    res.json({ 
-      success: true,
-      user: users[0],
-      // messages: messages
-      messages: [] // ถ้ายังไม่มี table
-    });
-  } catch (error) {
-    console.error('❌ API message-history error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-});
-
-// ========================================
 // OTHER ROUTES
 // ========================================
 app.use('/queue', queueRouter);
 
 const verifyRouter = require('./routes/verify');
 app.use('/api', verifyRouter);
-
 // ========================================
-// WEBHOOK - ✅ แก้ไขส่วนนี้
+// WEBHOOK
 // ========================================
 app.post('/webhook', async (req, res) => {
   try {
@@ -531,7 +364,7 @@ app.post('/webhook', async (req, res) => {
 
         const quickReplyItems = [
           { type: 'action', action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
-          { type: 'action', action: { type: 'message', label: 'สถานะของฉัน', text: 'สถานะของฉัน' } },
+          { type: 'action', action: { type: 'message', label: 'ตรวจสอบสิทธิ์', text: 'ตรวจสอบสิทธิ์' } },
           { type: 'action', action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } }
         ];
         
@@ -542,29 +375,27 @@ app.post('/webhook', async (req, res) => {
 
       if (event.type === 'message' && event.message.type === 'text') {
         const userId = event.source.userId;
-        const msg = event.message.text.trim();
+        const msg = event.message.text.trim().toLowerCase();
 
         const quickReplyItems = [
           { type: 'action', action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
-          { type: 'action', action: { type: 'message', label: 'สถานะของฉัน', text: 'สถานะของฉัน' } },
-          { type: 'action', action: { type: 'message', label: 'ตรวจสิทธิ์ล่วงหน้า', text: 'ตรวจสิทธิ์ล่วงหน้า' } },
-          { type: 'action', action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } }
+          { type: 'action', action: { type: 'message', label: 'ตรวจสอบสิทธิ์', text: 'ตรวจสอบสิทธิ์' } },
+          { type: 'action', action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' } },
+          { type: 'action', action: { type: 'message', label: 'รับ Token', text: 'รับ token' } }
         ];
 
-        // ✅ แก้ไข: เพิ่มคำสั่งสำหรับตรวจสอบคิว
-        if (msg === 'ลงทะเบียน' || msg.toLowerCase() === 'register') {
+        if (msg === 'ลงทะเบียน' || msg === 'register') {
           await startRegistration(userId, event.replyToken);
         } 
-        // ✅ ใหม่: ตรวจสอบคิวยา (เปลี่ยนจาก Push เป็น Reply)
-        else if (msg === 'สถานะของฉัน' || msg === 'สถานะของฉัน' || msg === 'check_status') {
-          await handleCheckAllStatus(userId, event.replyToken);  // ✅ เปลี่ยนเป็นบรรทัดนี้
+        else if (msg === 'ตรวจสอบสิทธิ์' || msg === 'ตรวจสอบสถานะ' || msg === 'check_status') {
+          const { handlePostback } = require('./handlers/postbackHandler');
+          await handlePostback({
+            source: { userId },
+            postback: { data: 'action=check_status' },
+            replyToken: event.replyToken
+          });
         }
-        // ✅ ใหม่: ตรวจสอบคิวชำระเงิน
-        // else if (msg === 'ชำระเงิน' || msg === 'ตรวจสอบสถานะชำระเงิน' || msg === 'คิวชำระเงิน' || msg.toLowerCase() === 'payment') {
-        //   await handleCheckPaymentQueue(userId, event.replyToken);
-        // }
-        // ✅ เก็บไว้: ตรวจสิทธิ์ล่วงหน้า (ใช้ QR Code)
-        else if (msg === 'ตรวจสิทธิ์ล่วงหน้า' || msg.toLowerCase() === 'preverify') {
+        else if (msg === 'ตรวจสิทธิ์ล่วงหน้า' || msg === 'preverify') {
           const { sendVerifyQR } = require('./handlers/verifyLineHandler');
 
           // ดึงข้อมูลผู้ใช้จาก DB
@@ -572,14 +403,14 @@ app.post('/webhook', async (req, res) => {
           if (rows.length === 0) {
             await replyMessage(event.replyToken, [
               { type: 'text', text: '❌ คุณยังไม่ได้ลงทะเบียน กรุณาลงทะเบียนก่อนใช้ฟังก์ชันนี้' }
-            ], quickReplyItems);
+            ]);
             return;
           }
 
           const patient = rows[0];
           await sendVerifyQR(userId, event.replyToken, patient);
         }
-        else if (msg === 'ติดต่อเจ้าหน้าที่' || msg.toLowerCase() === 'contact') {
+        else if (msg === 'ติดต่อเจ้าหน้าที่' || msg === 'contact') {
           await replyMessage(event.replyToken, [
             { 
               type: 'text', 
@@ -587,7 +418,7 @@ app.post('/webhook', async (req, res) => {
             }
           ], quickReplyItems);
         } 
-        else if (msg === 'รับ token' || msg.toLowerCase() === 'get_token') {
+        else if (msg === 'รับ token' || msg === 'get_token') {
           const rows = await queryDB2(
             'SELECT * FROM line_registered_users WHERE line_user_id = ?',
             [userId]
@@ -615,10 +446,7 @@ app.post('/webhook', async (req, res) => {
         } 
         else {
           await replyMessage(event.replyToken, [
-            { 
-              type: 'text', 
-              text: '❓ กรุณาเลือกเมนูด้านล่าง หรือพิมพ์:\n\n• "ลงทะเบียน" - ลงทะเบียนใหม่\n• "สถานะของฉัน" - ติดตามสถานะ\n• "ตรวจสิทธิ์ล่วงหน้า" - preverify\n• "ติดต่อเจ้าหน้าที่" - ขอความช่วยเหลือ' 
-            }
+            { type: 'text', text: 'กรุณาเลือกเมนูด้านล่าง หรือพิมพ์:\n• "ลงทะเบียน" - สำหรับลงทะเบียนใหม่\n• "ตรวจสอบสิทธิ์" - ดูข้อมูลสิทธิ์การรักษา\n• "ติดต่อเจ้าหน้าที่" - สอบถามข้อมูล' }
           ], quickReplyItems);
         }
       } 
@@ -639,7 +467,8 @@ app.post('/webhook', async (req, res) => {
 // ========================================
 
 const { startMonitoring } = require('./handlers/queueHandler');
-startMonitoring(); // 🔄 เริ่มตรวจคิวทุก 10 วิ ตาม POLL_INTERVAL
+startMonitoring(); // 🔁 เริ่มตรวจคิวทุก 10 วิ ตาม POLL_INTERVAL
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -651,5 +480,5 @@ app.listen(PORT, () => {
   console.log(`   - GET  /api/pharmacy-queue/stats`);
   console.log(`   - POST /api/call-pharmacy-queue`);
   console.log(`   - POST /api/check-rights`);
-  console.log(`📂 Dashboard path: ${path.join(__dirname, 'frontend', 'dashboard.html')}`);
+  console.log(`📁 Dashboard path: ${path.join(__dirname, 'frontend', 'dashboard.html')}`);
 });

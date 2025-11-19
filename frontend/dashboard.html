@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบจัดการผู้ใช้งาน LINE</title>
+    <title>Pharmacy Queue Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
@@ -29,45 +29,17 @@
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             margin-bottom: 20px;
+            text-align: center;
         }
 
         .header h1 {
             color: #333;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
-        .search-box {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .search-box input {
-            flex: 1;
-            padding: 12px 15px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
+        .header .time {
+            color: #666;
             font-size: 14px;
-        }
-
-        .search-box input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .refresh-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .refresh-btn:hover {
-            background: #5a67d8;
         }
 
         .stats {
@@ -89,7 +61,6 @@
             font-size: 36px;
             font-weight: bold;
             margin: 10px 0;
-            color: #667eea;
         }
 
         .stat-card .label {
@@ -97,169 +68,63 @@
             font-size: 14px;
         }
 
-        .main-content {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 20px;
-        }
+        .stat-card.waiting { border-left: 5px solid #fbbf24; }
+        .stat-card.waiting .number { color: #fbbf24; }
 
-        .user-list {
+        .stat-card.ready { border-left: 5px solid #10b981; }
+        .stat-card.ready .number { color: #10b981; }
+
+        .stat-card.called { border-left: 5px solid #3b82f6; }
+        .stat-card.called .number { color: #3b82f6; }
+
+        .stat-card.completed { border-left: 5px solid #8b5cf6; }
+        .stat-card.completed .number { color: #8b5cf6; }
+
+        .queue-list {
             background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            max-height: calc(100vh - 320px);
-            overflow-y: auto;
         }
 
-        .user-list h2 {
+        .queue-list h2 {
             margin-bottom: 15px;
             color: #333;
         }
 
-        .user-card {
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
+        table {
+            width: 100%;
+            border-collapse: collapse;
         }
 
-        .user-card:hover {
-            border-color: #667eea;
-            background: #f9fafb;
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
         }
 
-        .user-card.selected {
-            border-color: #667eea;
-            background: #eef2ff;
-        }
-
-        .user-card .user-name {
-            font-size: 16px;
+        th {
+            background: #f8f9fa;
             font-weight: 600;
             color: #333;
-            margin-bottom: 5px;
         }
 
-        .user-card .user-info {
-            font-size: 13px;
-            color: #666;
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
+        tr:hover {
+            background: #f8f9fa;
         }
 
-        .message-panel {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            max-height: calc(100vh - 320px);
-        }
-
-        .message-panel h3 {
-            color: #333;
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e5e7eb;
-        }
-
-        .selected-user-info {
-            background: #f9fafb;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-
-        .selected-user-info .name {
-            font-size: 16px;
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
             font-weight: 600;
-            color: #333;
-            margin-bottom: 5px;
-        }
-
-        .selected-user-info .details {
-            font-size: 13px;
-            color: #666;
-        }
-
-        .quick-messages {
-            margin-bottom: 15px;
-        }
-
-        .quick-messages label {
-            display: block;
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 8px;
-        }
-
-        .quick-btn {
-            background: #f3f4f6;
-            border: 1px solid #e5e7eb;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-            margin: 0 5px 5px 0;
             display: inline-block;
         }
 
-        .quick-btn:hover {
-            background: #e5e7eb;
-        }
-
-        .message-input {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .message-input textarea {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 14px;
-            resize: none;
-            font-family: inherit;
-        }
-
-        .message-input textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .send-btn {
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            margin-top: 10px;
-        }
-
-        .send-btn:hover {
-            background: #059669;
-        }
-
-        .send-btn:disabled {
-            background: #9ca3af;
-            cursor: not-allowed;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #9ca3af;
-        }
+        .status-waiting { background: #fef3c7; color: #92400e; }
+        .status-ready { background: #d1fae5; color: #065f46; }
+        .status-called { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #ede9fe; color: #5b21b6; }
 
         .loading {
             text-align: center;
@@ -267,23 +132,46 @@
             color: #666;
         }
 
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            background: #d1fae5;
-            color: #065f46;
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
         }
 
-        @media (max-width: 1024px) {
-            .main-content {
-                grid-template-columns: 1fr;
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+
+        .refresh-btn:hover {
+            background: #5a67d8;
+        }
+
+        .auto-refresh {
+            color: #666;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
             }
 
-            .message-panel {
-                max-height: 500px;
+            table {
+                font-size: 14px;
+            }
+
+            th, td {
+                padding: 8px;
             }
         }
     </style>
@@ -291,244 +179,156 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>👥 ระบบจัดการผู้ใช้งาน LINE</h1>
-            <div class="search-box">
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    placeholder="🔍 ค้นหาชื่อ, HN, เลขบัตรประชาชน..."
-                    onkeyup="filterUsers()"
-                >
-                <button class="refresh-btn" onclick="loadUsers()">🔄 รีเฟรช</button>
+            <h1>📊 Pharmacy Queue Dashboard</h1>
+            <div class="time" id="currentTime"></div>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card waiting">
+                <div class="label">รอจัดยา</div>
+                <div class="number" id="stat-waiting">-</div>
+            </div>
+            <div class="stat-card ready">
+                <div class="label">ยาพร้อม</div>
+                <div class="number" id="stat-ready">-</div>
+            </div>
+            <div class="stat-card called">
+                <div class="label">กำลังเรียก</div>
+                <div class="number" id="stat-called">-</div>
+            </div>
+            <div class="stat-card completed">
+                <div class="label">เสร็จสิ้น</div>
+                <div class="number" id="stat-completed">-</div>
             </div>
         </div>
 
-        <div class="stats">
-            <div class="stat-card">
-                <div class="label">ผู้ใช้ทั้งหมด</div>
-                <div class="number" id="totalUsers">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">ผู้ใช้วันนี้</div>
-                <div class="number" id="todayUsers">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">ข้อความที่ส่ง</div>
-                <div class="number" id="messagesSent">0</div>
-            </div>
-        </div>
-
-        <div class="main-content">
-            <div class="user-list">
-                <h2>รายชื่อผู้ใช้งาน</h2>
-                <div id="userListContainer"></div>
-            </div>
-
-            <div class="message-panel">
-                <h3>💬 ส่งข้อความ</h3>
-                <div id="messageContent">
-                    <div class="empty-state">
-                        <p>📝 เลือกผู้ใช้เพื่อส่งข้อความ</p>
-                    </div>
-                </div>
-            </div>
+        <div class="queue-list">
+            <h2>รายการคิววันนี้ 
+                <button class="refresh-btn" onclick="loadData()">🔄 Refresh</button>
+                <span class="auto-refresh">อัพเดทอัตโนมัติทุก 30 วินาที</span>
+            </h2>
+            <div id="queueTable"></div>
         </div>
     </div>
 
     <script>
         const API_BASE = window.location.origin;
-        let allUsers = [];
-        let selectedUser = null;
-        let messageCount = 0;
 
-        const quickMessages = [
-            'ยาของคุณพร้อมแล้ว กรุณามารับที่เคาน์เตอร์',
-            'กรุณารอสักครู่ ยาของคุณกำลังจัดเตรียม',
-            'ขอบคุณที่ใช้บริการค่ะ',
-            'กรุณามาชำระเงินที่เคาน์เตอร์'
-        ];
+        // อัพเดทเวลา
+        function updateTime() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: false 
+            };
+            document.getElementById('currentTime').textContent = 
+                now.toLocaleDateString('th-TH', options);
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
 
-        async function loadUsers() {
-            const container = document.getElementById('userListContainer');
-            container.innerHTML = '<div class="loading">🔄 กำลังโหลดข้อมูล...</div>';
-
+        // โหลดข้อมูลสถิติ
+        async function loadStats() {
             try {
-                const response = await fetch(`${API_BASE}/api/registered-users`);
+                const response = await fetch(`${API_BASE}/api/pharmacy-queue/stats`);
                 const data = await response.json();
 
-                if (data.success && data.users) {
-                    allUsers = data.users;
-                    displayUsers(allUsers);
-                    updateStats();
-                } else {
-                    container.innerHTML = '<div class="empty-state">❌ ไม่สามารถโหลดข้อมูลได้</div>';
+                if (data.success) {
+                    document.getElementById('stat-waiting').textContent = 
+                        data.stats.waiting_medicine || 0;
+                    document.getElementById('stat-ready').textContent = 
+                        data.stats.medicine_ready || 0;
+                    document.getElementById('stat-called').textContent = 
+                        data.stats.called || 0;
+                    document.getElementById('stat-completed').textContent = 
+                        data.stats.completed || 0;
                 }
             } catch (error) {
-                console.error('Error loading users:', error);
-                container.innerHTML = '<div class="empty-state">❌ เกิดข้อผิดพลาด: ' + error.message + '</div>';
+                console.error('Error loading stats:', error);
             }
         }
 
-        function displayUsers(users) {
-            const container = document.getElementById('userListContainer');
-
-            if (users.length === 0) {
-                container.innerHTML = '<div class="empty-state">📭 ไม่พบข้อมูลผู้ใช้</div>';
-                return;
-            }
-
-            let html = '';
-            users.forEach(user => {
-                const registeredDate = user.registered_at ? 
-                    new Date(user.registered_at).toLocaleDateString('th-TH', { 
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric' 
-                    }) : '-';
-
-                const isSelected = selectedUser && selectedUser.line_user_id === user.line_user_id;
-                const idCardDisplay = user.id_card ? user.id_card.substring(0, 4) + '-xxxx-xxx' : '-';
-
-                html += `
-                    <div class="user-card ${isSelected ? 'selected' : ''}" 
-                         onclick="selectUser('${user.line_user_id}')">
-                        <div class="user-name">
-                            ${user.full_name || 'ไม่ระบุชื่อ'}
-                            <span class="badge">✓ ลงทะเบียน</span>
-                        </div>
-                        <div class="user-info">
-                            <span>🏥 HN: ${user.hn || '-'}</span>
-                            <span>🆔 ${idCardDisplay}</span>
-                            <span>📅 ${registeredDate}</span>
-                        </div>
-                    </div>
-                `;
-            });
-
-            container.innerHTML = html;
-        }
-
-        function filterUsers() {
-            const searchText = document.getElementById('searchInput').value.toLowerCase();
-
-            if (!searchText) {
-                displayUsers(allUsers);
-                return;
-            }
-
-            const filtered = allUsers.filter(user => 
-                (user.full_name && user.full_name.toLowerCase().includes(searchText)) ||
-                (user.hn && user.hn.includes(searchText)) ||
-                (user.id_card && user.id_card.includes(searchText))
-            );
-
-            displayUsers(filtered);
-        }
-
-        function selectUser(lineUserId) {
-            selectedUser = allUsers.find(u => u.line_user_id === lineUserId);
+        // โหลดรายการคิว
+        async function loadQueueList() {
+            const tableDiv = document.getElementById('queueTable');
             
-            if (!selectedUser) return;
-
-            displayUsers(allUsers);
-
-            const messageContent = document.getElementById('messageContent');
-            const idCardDisplay = selectedUser.id_card ? 
-                selectedUser.id_card.substring(0, 4) + '-xxxx-xxx' : '-';
-
-            let quickBtns = '';
-            quickMessages.forEach((msg, i) => {
-                quickBtns += `<button class="quick-btn" onclick="setQuickMessage(${i})">${msg}</button>`;
-            });
-
-            messageContent.innerHTML = `
-                <div class="selected-user-info">
-                    <div class="name">${selectedUser.full_name || 'ไม่ระบุชื่อ'}</div>
-                    <div class="details">
-                        HN: ${selectedUser.hn || '-'} | ID: ${idCardDisplay}
-                    </div>
-                </div>
-
-                <div class="quick-messages">
-                    <label>ข้อความด่วน:</label>
-                    ${quickBtns}
-                </div>
-
-                <div class="message-input">
-                    <textarea 
-                        id="messageText" 
-                        placeholder="พิมพ์ข้อความที่ต้องการส่ง..."
-                        rows="8"
-                    ></textarea>
-                    <button class="send-btn" onclick="sendMessage()">📤 ส่งข้อความ</button>
-                </div>
-            `;
-        }
-
-        function setQuickMessage(index) {
-            document.getElementById('messageText').value = quickMessages[index];
-        }
-
-        async function sendMessage() {
-            if (!selectedUser) {
-                alert('❌ กรุณาเลือกผู้ใช้ก่อน');
-                return;
-            }
-
-            const messageText = document.getElementById('messageText').value.trim();
-            if (!messageText) {
-                alert('❌ กรุณาพิมพ์ข้อความ');
-                return;
-            }
-
-            const sendBtn = document.querySelector('.send-btn');
-            sendBtn.disabled = true;
-            sendBtn.textContent = '⏳ กำลังส่ง...';
-
             try {
-                const response = await fetch(`${API_BASE}/api/send-push-message`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        lineUserId: selectedUser.line_user_id,
-                        message: messageText
-                    })
-                });
+                const response = await fetch(`${API_BASE}/api/pharmacy-queue/all-status`);
+                const data = await response.json();
 
-                const result = await response.json();
+                if (data.success) {
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>VN</th>
+                                <th>HN</th>
+                                <th>ชื่อ-นามสกุล</th>
+                                <th>คลินิก</th>
+                                <th>สถานะยา</th>
+                                <th>LINE ID</th>
+                                <th>เวลา</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
 
-                if (result.success) {
-                    alert('✅ ส่งข้อความสำเร็จ');
-                    document.getElementById('messageText').value = '';
-                    messageCount++;
-                    updateStats();
+                if (data.queues.length === 0) {
+                    html += '<tr><td colspan="7" style="text-align:center; color:#666;">ไม่มีข้อมูล</td></tr>';
                 } else {
-                    alert('❌ ส่งข้อความไม่สำเร็จ: ' + (result.error || result.message));
+                    data.queues.forEach(queue => {
+                        const status = queue.DrugReady === 1 ? 'ยาพร้อม' : 
+                                     queue.DrugAcknowledge === 1 ? 'รอจัดยา' : '-';
+                        const statusClass = queue.DrugReady === 1 ? 'ready' : 
+                                          queue.DrugAcknowledge === 1 ? 'waiting' : '';
+                        
+                        const hasLine = queue.line_user_id ? '✅' : '❌';
+                        const lineColor = queue.line_user_id ? 'green' : 'red';
+                        
+                        const time = queue.OutDateTime ? 
+                            new Date(queue.OutDateTime).toLocaleTimeString('th-TH') : '-';
+                        
+                        html += `
+                        <tr>
+                            <td><strong>${queue.VN}</strong></td>
+                            <td>${queue.HN || '-'}</td>
+                            <td>${queue.PatientName || '-'}</td>
+                            <td>${queue.ClinicName || '-'}</td>
+                            <td><span class="status-badge status-${statusClass}">${status}</span></td>
+                            <td style="text-align:center; color:${lineColor}; font-size:18px;">${hasLine}</td>
+                            <td>${time}</td>
+                        </tr>
+                        `;
+                    });
+                }
+
+                html += '</tbody></table>';
+                tableDiv.innerHTML = html;
+
+                } else {
+                tableDiv.innerHTML = '<div class="error">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>';
                 }
             } catch (error) {
-                console.error('Error sending message:', error);
-                alert('❌ เกิดข้อผิดพลาด: ' + error.message);
-            } finally {
-                sendBtn.disabled = false;
-                sendBtn.textContent = '📤 ส่งข้อความ';
+                console.error('Error loading queue list:', error);
+                tableDiv.innerHTML = '<div class="error">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>';
             }
         }
-
-        function updateStats() {
-            document.getElementById('totalUsers').textContent = allUsers.length;
-            
-            const today = new Date().toDateString();
-            const todayUsers = allUsers.filter(u => {
-                if (!u.registered_at) return false;
-                return new Date(u.registered_at).toDateString() === today;
-            }).length;
-            document.getElementById('todayUsers').textContent = todayUsers;
-            
-            document.getElementById('messagesSent').textContent = messageCount;
+        
+        // โหลดข้อมูลทั้งหมด
+        async function loadData() {
+            await Promise.all([loadStats(), loadQueueList()]);
         }
 
-        loadUsers();
-        setInterval(loadUsers, 120000);
+        // เริ่มต้น
+        loadData();
+
+        // Auto refresh ทุก 30 วินาที
+        setInterval(loadData, 30000);
     </script>
 </body>
 </html>
