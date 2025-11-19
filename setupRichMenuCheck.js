@@ -3,8 +3,8 @@ const fs = require('fs');
 require('dotenv').config();
 
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const TEST_USER_ID = process.env.TEST_USER_ID || 'Udc23cd2351bf610b189e17a73a3c722c'; // ใส่ userId ของคุณ
-const RICH_MENU_IMAGE_PATH = 'main_menu.jpg'; // ภาพเมนู
+const TEST_USER_ID = process.env.TEST_USER_ID; // ใส่ userId ของคุณ
+const RICH_MENU_IMAGE_PATH = 'main_menuV1.2.jpg'; // ภาพเมนู
 const RICH_MENU_NAME = 'Main Menu V2.1';
 
 const headers = { Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}` };
@@ -28,7 +28,7 @@ const richMenu = {
     },
     {
       bounds: { x: 400, y: 250, width: 400, height: 560 },
-      action: { type: 'message', label: 'ตรวจสอบสิทธิ์', text: 'ตรวจสอบสิทธิ์' }
+      action: { type: 'message', label: 'สถานะของฉัน', text: 'สถานะของฉัน' }
     },
     {
       bounds: { x: 800, y: 250, width: 400, height: 560 },
@@ -101,27 +101,37 @@ async function listRichMenus() {
 
 // รันทั้งหมด
 async function main() {
-  let richMenuId;
   const menus = await listRichMenus();
 
-  // ถ้ามีชื่อเดียวกันให้ใช้ของเก่า ไม่สร้างซ้ำ
-  const existing = menus.find(m => m.name === RICH_MENU_NAME);
-  if (existing) {
-    richMenuId = existing.richMenuId;
-    console.log('Using existing Rich Menu:', richMenuId);
-    await uploadRichMenuImage(richMenuId);
-  } else {
-    richMenuId = await createRichMenu();
-    await uploadRichMenuImage(richMenuId);
+  // 🔥 1) ลบเมนูทั้งหมดที่ชื่อเหมือนกัน
+  for (const m of menus) {
+    if (m.name === RICH_MENU_NAME) {
+      await axios.delete(
+        `https://api.line.me/v2/bot/richmenu/${m.richMenuId}`,
+        { headers }
+      );
+      console.log(`Deleted old rich menu: ${m.richMenuId}`);
+    }
   }
 
-  await setDefaultRichMenu(richMenuId);
+  // 🆕 2) สร้าง Rich Menu ใหม่เสมอ (ไม่ใช้เมนูเก่าอีก)
+  console.log("Creating new Rich Menu...");
+  const newMenuId = await createRichMenu();
 
+  // 🖼 3) อัปโหลดรูป
+  console.log("Uploading image...");
+  await uploadRichMenuImage(newMenuId);
+
+  // ⭐ 4) ตั้ง default Rich Menu
+  await setDefaultRichMenu(newMenuId);
+
+  // 👤 5) ผูกเมนูกับ TEST USER (ถ้ามี)
   if (TEST_USER_ID) {
-    await linkRichMenuToUser(TEST_USER_ID, richMenuId);
+    await linkRichMenuToUser(TEST_USER_ID, newMenuId);
   }
 
-  console.log('✅ Rich Menu setup completed');
+  console.log("✅ Rich Menu setup completed");
 }
+
 
 main();
